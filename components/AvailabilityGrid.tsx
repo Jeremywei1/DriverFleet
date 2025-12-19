@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { Driver, DriverSchedule, DriverStatus } from '../types';
-import { Clock } from 'lucide-react';
+import { User, Clock } from 'lucide-react';
 
 interface Props {
   drivers: Driver[];
@@ -13,13 +12,13 @@ const AvailabilityGrid: React.FC<Props> = ({ drivers, schedule }) => {
   const getStatusStyle = (status: DriverStatus) => {
     switch (status) {
       case DriverStatus.BUSY: 
-        return 'bg-rose-300 border-rose-400 shadow-[inset_0_-2px_0_rgba(0,0,0,0.1)]';
+        return 'bg-rose-300 border-rose-400 shadow-[inset_0_-2px_0_rgba(0,0,0,0.1)]'; // Pastel Red
       case DriverStatus.FREE: 
-        return 'bg-sky-100 border-sky-200 shadow-[inset_0_-2px_0_rgba(0,0,0,0.05)]';
+        return 'bg-sky-100 border-sky-200 shadow-[inset_0_-2px_0_rgba(0,0,0,0.05)]'; // Pastel Blue/Cloud
       case DriverStatus.BREAK: 
-        return 'bg-amber-200 border-amber-300 shadow-[inset_0_-2px_0_rgba(0,0,0,0.1)]';
+        return 'bg-amber-200 border-amber-300 shadow-[inset_0_-2px_0_rgba(0,0,0,0.1)]'; // Pastel Yellow
       case DriverStatus.OFF_DUTY: 
-        return 'bg-slate-100 border-slate-200 opacity-60';
+        return 'bg-slate-100 border-slate-200 opacity-60'; // Light Gray
       default: 
         return 'bg-gray-100';
     }
@@ -41,14 +40,19 @@ const AvailabilityGrid: React.FC<Props> = ({ drivers, schedule }) => {
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-rose-300 border border-rose-400 rounded-md shadow-sm"></div> 忙碌
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-amber-200 border border-amber-300 rounded-md shadow-sm"></div> 休息
+          </div>
         </div>
       </div>
 
       <div className="overflow-x-auto flex-1 custom-scrollbar">
         <div className="min-w-[1000px] p-5">
+          {/* Header Row */}
           <div className="flex mb-3">
             <div className="w-48 flex-shrink-0 font-bold text-slate-400 text-xs uppercase tracking-wider pl-2">司机团队</div>
-            <div className="flex-1 grid grid-cols-24 gap-1">
+            {/* Fixed Horizontal Grid for Header */}
+            <div className="flex-1 grid grid-cols-[repeat(24,minmax(0,1fr))] gap-1">
               {hours.map(h => (
                 <div key={h} className="text-center text-xs font-bold text-slate-400 font-mono">
                   {h}
@@ -57,26 +61,41 @@ const AvailabilityGrid: React.FC<Props> = ({ drivers, schedule }) => {
             </div>
           </div>
 
+          {/* Driver Rows */}
           <div className="space-y-4">
             {drivers.map(driver => {
               const driverSched = schedule.find(s => s.driverId === driver.id);
               
               return (
                 <div key={driver.id} className="flex items-center group">
+                  {/* Driver Info */}
                   <div className="w-48 flex-shrink-0 flex items-center gap-3 pr-4">
-                    <img src={driver.avatar} alt={driver.name} className="w-11 h-11 rounded-2xl border-2 border-white shadow-md object-cover" />
+                    <div className="relative">
+                       <img src={driver.avatar} alt={driver.name} className="w-11 h-11 rounded-2xl border-2 border-white shadow-md object-cover" />
+                       <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+                         <div className={`w-2.5 h-2.5 rounded-full ${driver.rating > 4.8 ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                       </div>
+                    </div>
                     <div>
-                      <p className="font-bold text-slate-700 text-sm leading-tight">{driver.name}</p>
-                      <p className="text-[10px] text-slate-400 font-medium">{driver.plateNumber}</p>
+                      <p className="font-bold text-slate-700 text-sm">{driver.name}</p>
+                      <div className="flex items-center text-xs font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md w-fit mt-0.5">
+                         <span className="text-amber-400 mr-1 text-[10px]">★</span> {driver.rating.toFixed(1)}
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="flex-1 grid grid-cols-24 gap-1 bg-slate-50/50 rounded-xl p-1.5 border border-slate-100/80">
+                  {/* Time Slots Grid - Fixed horizontal layout */}
+                  <div className="flex-1 grid grid-cols-[repeat(24,minmax(0,1fr))] gap-1 bg-slate-50/50 rounded-xl p-1.5 border border-slate-100/80">
                     {driverSched?.slots.map((slot) => (
                       <div
                         key={slot.hour}
-                        title={`${driver.name} - ${slot.hour}点`}
-                        className={`h-9 rounded-md transition-all duration-200 border-b-2 ${getStatusStyle(slot.status)}`}
+                        title={`${driver.name} - ${slot.hour}点 - ${slot.status === 'BUSY' ? '忙碌' : slot.status === 'FREE' ? '空闲' : '休息'}`}
+                        className={`
+                          h-9 rounded-md transition-all duration-200 cursor-pointer 
+                          hover:-translate-y-1 hover:shadow-lg hover:z-20 hover:scale-110
+                          border-b-2
+                          ${getStatusStyle(slot.status)}
+                        `}
                       >
                       </div>
                     ))}

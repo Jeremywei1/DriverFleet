@@ -1,4 +1,3 @@
-
 export enum DriverStatus {
   FREE = 'FREE',
   BUSY = 'BUSY',
@@ -11,24 +10,26 @@ export interface Driver {
   name: string;
   avatar: string;
   rating: number;
+  // New fields for Live Map
   currentStatus: DriverStatus;
   coordinates: {
-    x: number;
-    y: number;
+    x: number; // 0-100 percentage for demo map
+    y: number; // 0-100 percentage for demo map
   };
   vehicleType: 'Sedan' | 'Van' | 'Truck';
   plateNumber: string;
 }
 
+// Represents one hour slot for a driver
 export interface TimeSlot {
-  hour: number;
+  hour: number; // 0-23
   status: DriverStatus;
-  taskId?: string;
+  taskId?: string; // If busy, linked to a task
 }
 
 export interface DriverSchedule {
   driverId: string;
-  date: string;
+  date: string; // YYYY-MM-DD
   slots: TimeSlot[];
 }
 
@@ -37,8 +38,8 @@ export interface Task {
   title: string;
   driverId: string | null;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-  startTime: string;
-  endTime: string;
+  startTime: string; // ISO string
+  endTime: string; // ISO string
   locationStart: string;
   locationEnd: string;
   distanceKm: number;
@@ -52,13 +53,5 @@ export interface DriverStats {
   totalHours: number;
   totalDistance: number;
   completedOrders: number;
-  efficiencyScore: number;
-}
-
-export interface SyncLog {
-  id: string;
-  date: string;
-  status: 'SUCCESS' | 'FAILED' | 'PENDING';
-  timestamp: string;
-  details: string;
+  efficiencyScore: number; // 0-100
 }

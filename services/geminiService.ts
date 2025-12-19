@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { DriverStats, Task, DriverSchedule } from '../types';
 
@@ -15,10 +14,11 @@ export const getFleetAnalysis = async (
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // 数据摘要处理
-    const statsSummary = stats.map(s => `${s.name}: ${s.completedOrders} 单, 效率分: ${s.efficiencyScore}`).join('\n');
+    // Summarize data to avoid token limits
+    const statsSummary = stats.map(s => `${s.name}: ${s.completedOrders} 单, ${s.totalHours} 小时, 效率分: ${s.efficiencyScore}`).join('\n');
     const taskSummary = `今日总任务数: ${tasks.length}, 高优先级: ${tasks.filter(t => t.priority === 'HIGH').length}`;
     
+    // Calculate busy rate roughly
     let totalSlots = 0;
     let busySlots = 0;
     schedules.forEach(s => {
@@ -38,24 +38,25 @@ export const getFleetAnalysis = async (
       - ${taskSummary}
       - 白天车队利用率 (8点-18点): ${utilization}%
 
-      **司机绩效摘要：**
+      **司机绩效 (月度抽样)：**
       ${statsSummary}
 
-      请提供一份简明扼要的报告（中文），包含：
-      1. **异常监控**：是否有过度疲劳风险。
-      2. **调度建议**：2条具体的优化操作建议。
+      请提供一份简明扼要的战略报告（使用中文），包括：
+      1. **异常检测**：是否有司机过度劳累或工作量不足？
+      2. **运营效率**：今日车队整体表现如何？
+      3. **改进建议**：2-3 条具体的排班或激励建议。
       
-      请使用 Markdown 格式。
+      语气要专业且具鼓励性。请使用 Markdown 格式。
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: prompt,
     });
 
     return response.text || "未生成分析结果。";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "暂时无法生成 AI 洞察。请稍后重试。";
+    return "暂时无法生成 AI 洞察。请检查网络或 API 密钥。";
   }
 };
