@@ -1,27 +1,51 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useCallback } from 'react';
 import { generateDrivers, generateSchedule, generateTasks, generateStats } from './services/mockData';
 import AvailabilityGrid from './components/AvailabilityGrid';
 import TaskList from './components/TaskList';
 import PerformanceReport from './components/PerformanceReport';
 import AIInsight from './components/AIInsight';
 import DriverManagement from './components/DriverManagement';
-import LiveMap from './components/LiveMap'; // Import the new component
+import LiveMap from './components/LiveMap'; 
 import { LayoutDashboard, Users, BarChart3, Settings, Calendar as CalendarIcon, Bell, Map } from 'lucide-react';
+import { DriverStatus } from './types';
 
 const App: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'drivers' | 'map'>('dashboard');
 
-  // Memoize data generation so it doesn't change on every render, but changes when date changes
   const drivers = useMemo(() => generateDrivers(), []);
-  const schedule = useMemo(() => generateSchedule(drivers, currentDate), [drivers, currentDate]);
+  
+  // Initialize schedule with state to allow modifications
+  const [schedules, setSchedules] = useState(() => generateSchedule(drivers, currentDate));
+
+  // Regenerate schedules if date changes (simulated for demo)
+  useMemo(() => {
+    setSchedules(generateSchedule(drivers, currentDate));
+  }, [drivers, currentDate]);
+
   const tasks = useMemo(() => generateTasks(drivers, currentDate), [drivers, currentDate]);
   const stats = useMemo(() => generateStats(drivers), [drivers]);
+
+  const handleUpdateSlot = useCallback((driverId: string, hour: number, newStatus: DriverStatus) => {
+    setSchedules(prevSchedules => 
+      prevSchedules.map(sched => {
+        if (sched.driverId === driverId) {
+          return {
+            ...sched,
+            slots: sched.slots.map(slot => 
+              slot.hour === hour ? { ...slot, status: newStatus } : slot
+            )
+          };
+        }
+        return sched;
+      })
+    );
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans">
       
-      {/* Sidebar / Navigation */}
       <aside className="w-full md:w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col">
         <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
@@ -80,9 +104,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Header */}
         <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center shadow-sm z-10">
            <div className="flex items-center gap-4">
              <h1 className="text-xl font-bold text-slate-800 hidden md:block">
@@ -115,22 +137,23 @@ const App: React.FC = () => {
            </div>
         </header>
 
-        {/* Dashboard View */}
         <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 bg-slate-50/50">
           
           {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-full">
-              {/* Left Column: Grid & AI */}
               <div className="xl:col-span-2 flex flex-col gap-6">
                 <div className="flex-none">
-                  <AvailabilityGrid drivers={drivers} schedule={schedule} />
+                  <AvailabilityGrid 
+                    drivers={drivers} 
+                    schedule={schedules} 
+                    onUpdateSlot={handleUpdateSlot}
+                  />
                 </div>
                 <div className="flex-none">
-                  <AIInsight stats={stats} tasks={tasks} schedules={schedule} />
+                  <AIInsight stats={stats} tasks={tasks} schedules={schedules} />
                 </div>
               </div>
               
-              {/* Right Column: Task List */}
               <div className="xl:col-span-1 h-[600px] xl:h-auto">
                 <TaskList tasks={tasks} drivers={drivers} />
               </div>
