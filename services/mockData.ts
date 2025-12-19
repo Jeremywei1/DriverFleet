@@ -1,4 +1,5 @@
-import { Driver, DriverSchedule, DriverStatus, Task, DriverStats } from '../types';
+
+import { Driver, DriverSchedule, DriverStatus, Task, DriverStats, Vehicle, VehicleStatus } from '../types';
 
 const DRIVER_NAMES = [
   "张师傅", "李大爷", "小王", "刘哥", 
@@ -11,10 +12,14 @@ const LOCATIONS = [
 ];
 
 const VEHICLE_TYPES = ['Sedan', 'Van', 'Truck'] as const;
+const VEHICLE_MODELS = {
+  Sedan: ["丰田 凯美瑞", "本田 雅阁", "大众 帕萨特"],
+  Van: ["别克 GL8", "丰田 赛那", "本田 艾力绅"],
+  Truck: ["福田 奥铃", "五十铃 翼放", "江淮 帅铃"]
+};
 
 export const generateDrivers = (): Driver[] => {
   return DRIVER_NAMES.map((name, index) => {
-    // Random status generation for current moment
     const rand = Math.random();
     let currentStatus = DriverStatus.FREE;
     if (rand > 0.6) currentStatus = DriverStatus.BUSY;
@@ -23,15 +28,32 @@ export const generateDrivers = (): Driver[] => {
     return {
       id: `d-${index}`,
       name,
-      avatar: `https://picsum.photos/seed/${index}/100/100`,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
       rating: 4.5 + Math.random() * 0.5,
       currentStatus,
       coordinates: {
-        x: 10 + Math.random() * 80, // Keep within 10-90% to avoid edge clipping
+        x: 10 + Math.random() * 80,
         y: 10 + Math.random() * 80
       },
-      vehicleType: VEHICLE_TYPES[Math.floor(Math.random() * VEHICLE_TYPES.length)],
-      plateNumber: `京A·${Math.floor(10000 + Math.random() * 90000)}`
+      phone: `138${Math.floor(10000000 + Math.random() * 90000000)}`,
+      joinDate: '2023-01-12'
+    };
+  });
+};
+
+export const generateVehicles = (drivers: Driver[]): Vehicle[] => {
+  // 车辆独立生成，可能暂时没有分配司机
+  return Array.from({ length: 12 }, (_, index) => {
+    const type = VEHICLE_TYPES[index % VEHICLE_TYPES.length];
+    return {
+      id: `v-${index}`,
+      plateNumber: `京A·${Math.floor(10000 + Math.random() * 90000)}`,
+      model: VEHICLE_MODELS[type][Math.floor(Math.random() * 3)],
+      type,
+      status: Math.random() > 0.8 ? VehicleStatus.MAINTENANCE : VehicleStatus.ACTIVE,
+      currentDriverId: index < drivers.length ? drivers[index].id : null,
+      mileage: 5000 + Math.floor(Math.random() * 50000),
+      lastService: '2024-02-15'
     };
   });
 };
