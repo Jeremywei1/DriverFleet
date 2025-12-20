@@ -78,6 +78,12 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
     setSelectedVehicleId('');
   };
 
+  const gridStyle = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(24, minmax(0, 1fr))',
+    gap: '4px'
+  };
+
   return (
     <div className="h-full flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
       <div className="flex justify-between items-center">
@@ -123,7 +129,7 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
                   <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                     <User className="w-4 h-4 text-indigo-500" /> 司机运力队列 (全时段)
                   </h4>
-                  <div className="grid grid-cols-24 gap-1 w-[75%] px-1">
+                  <div className="flex-1 ml-32" style={gridStyle}>
                     {[0, 6, 12, 18, 23].map(h => (
                       <span key={h} className="text-[9px] font-black text-slate-300" style={{ gridColumnStart: h + 1 }}>{h}:00</span>
                     ))}
@@ -136,7 +142,7 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
                         <img src={d.avatar} className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 shadow-sm" alt="" />
                         <span className="text-sm font-black text-slate-700 truncate">{d.name}</span>
                       </div>
-                      <div className="flex-1 grid grid-cols-24 gap-1 h-8">
+                      <div className="flex-1 h-8" style={gridStyle}>
                         {driverSchedules.find(s => s.driverId === d.id)?.slots.map(slot => (
                           <div 
                             key={slot.hour} 
@@ -166,7 +172,7 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
                         <p className="text-sm font-black text-slate-700">{v.plateNumber}</p>
                         <p className="text-[9px] text-slate-400 font-bold truncate">{v.model}</p>
                       </div>
-                      <div className="flex-1 grid grid-cols-24 gap-1 h-8">
+                      <div className="flex-1 h-8" style={gridStyle}>
                         {vehicleSchedules.find(s => s.vehicleId === v.id)?.slots.map(slot => (
                           <div 
                             key={slot.hour} 

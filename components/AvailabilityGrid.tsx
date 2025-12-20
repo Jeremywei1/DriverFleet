@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Driver, DriverSchedule, DriverStatus, Vehicle, VehicleSchedule, VehicleStatus } from '../types';
-import { Clock, Check, X, User, Car, Wrench, AlertCircle, Settings2, Timer } from 'lucide-react';
+import { Clock, Check, X, User, Car, Wrench, AlertCircle, Settings2, Timer, Moon } from 'lucide-react';
 
 interface Props {
   mode: 'driver' | 'vehicle';
@@ -81,7 +81,7 @@ const AvailabilityGrid: React.FC<Props> = ({
 
   const handleSlotClick = (id: string, name: string, hour: number, currentStatus: any) => {
     if (mode === 'driver') {
-      if (currentStatus === DriverStatus.OFF_DUTY) return;
+      // 移除原有的 OFF_DUTY 拦截逻辑，支持全时段点击
       setEditingSlot({ id, name, hour, currentStatus });
     } else {
       const v = vehicles?.find(veh => veh.id === id);
@@ -108,6 +108,7 @@ const AvailabilityGrid: React.FC<Props> = ({
               <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-100 border border-emerald-200 rounded shadow-sm"></div> 空闲</div>
               <div className="flex items-center gap-2"><div className="w-3 h-3 bg-rose-300 border border-rose-400 rounded shadow-sm"></div> 忙碌</div>
               <div className="flex items-center gap-2"><div className="w-3 h-3 bg-amber-200 border border-amber-300 rounded shadow-sm"></div> 休息</div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-100 border border-slate-200 rounded opacity-60"></div> 下班</div>
             </>
           ) : (
             <>
@@ -222,9 +223,10 @@ const AvailabilityGrid: React.FC<Props> = ({
               </div>
               <div className="space-y-3">
                 {[
-                  { id: DriverStatus.FREE, label: '设为空闲' },
-                  { id: DriverStatus.BUSY, label: '设为忙碌' },
-                  { id: DriverStatus.BREAK, label: '设为休息' },
+                  { id: DriverStatus.FREE, label: '设为空闲待命' },
+                  { id: DriverStatus.BUSY, label: '手动标记忙碌' },
+                  { id: DriverStatus.BREAK, label: '设为临时休息' },
+                  { id: DriverStatus.OFF_DUTY, label: '标记为已下班', icon: <Moon className="w-4 h-4" /> },
                 ].map((option) => (
                   <button
                     key={option.id}
@@ -232,9 +234,10 @@ const AvailabilityGrid: React.FC<Props> = ({
                       onUpdateSlot?.(editingSlot.id, editingSlot.hour, option.id);
                       setEditingSlot(null);
                     }}
-                    className={`w-full p-5 rounded-[24px] border-2 border-transparent bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 transition-all font-black text-sm uppercase tracking-widest`}
+                    className={`w-full p-5 rounded-[24px] border-2 border-transparent bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 transition-all font-black text-sm uppercase tracking-widest flex items-center justify-between group`}
                   >
                     {option.label}
+                    {option.icon && <span className="opacity-40 group-hover:opacity-100 transition-opacity">{option.icon}</span>}
                   </button>
                 ))}
               </div>

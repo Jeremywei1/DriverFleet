@@ -56,7 +56,8 @@ export const generateSchedule = (drivers: Driver[], date: string): DriverSchedul
     date,
     slots: Array.from({ length: 24 }, (_, i) => ({
       hour: i,
-      status: (i < 8 || i > 20) ? DriverStatus.OFF_DUTY : DriverStatus.FREE
+      // 移除原有的 8点-20点限制，默认全天候可调度
+      status: DriverStatus.FREE
     }))
   }));
 };
