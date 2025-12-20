@@ -64,7 +64,8 @@ const AIInsight: React.FC<Props> = ({ stats, tasks, schedules }) => {
         </div>
         
         <div className="mt-4 text-xs text-indigo-200 flex justify-between items-center">
-          <span>由 Gemini 2.5 Flash 驱动</span>
+          {/* Fixed: Updated label to match the Gemini 3 series model used in the service */}
+          <span>由 Gemini 3 Flash 驱动</span>
           <span>刚刚更新</span>
         </div>
       </div>

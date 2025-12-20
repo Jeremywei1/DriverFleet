@@ -37,6 +37,7 @@ export interface Vehicle {
   lastService: string;
 }
 
+// Fixed: Corrected status type to DriverStatus as TimeSlot is specifically used for driver schedules
 export interface TimeSlot {
   hour: number;
   status: DriverStatus;
@@ -49,10 +50,17 @@ export interface DriverSchedule {
   slots: TimeSlot[];
 }
 
+export interface VehicleSchedule {
+  vehicleId: string;
+  date: string;
+  slots: { hour: number; isAvailable: boolean; taskId?: string }[];
+}
+
 export interface Task {
   id: string;
   title: string;
   driverId: string | null;
+  vehicleId: string | null;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   startTime: string;
   endTime: string;
