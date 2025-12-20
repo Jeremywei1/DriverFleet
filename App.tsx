@@ -187,7 +187,7 @@ const App: React.FC = () => {
               <div className="xl:col-span-2 flex flex-col gap-10">
                 <AIInsight stats={stats} tasks={tasks} schedules={driverSchedules} />
                 <div className="bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm">
-                  <AvailabilityGrid mode="driver" drivers={drivers} schedule={driverSchedules} onUpdateSlot={handleUpdateSlot} />
+                  <AvailabilityGrid mode="driver" drivers={drivers} schedule={driverSchedules} onUpdateSlot={handleUpdateSlot} selectedDate={currentDate} />
                 </div>
               </div>
               <div className="xl:col-span-1">
@@ -250,6 +250,7 @@ const App: React.FC = () => {
                     vehicleSchedule={vehicleSchedules}
                     onUpdateSlot={monitorSubTab === 'driver' ? handleUpdateSlot : undefined}
                     onUpdateVehicleStatus={handleUpdateVehicleStatus}
+                    selectedDate={currentDate}
                  />
                </div>
             </div>

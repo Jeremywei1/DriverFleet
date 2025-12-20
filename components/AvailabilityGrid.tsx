@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Driver, DriverSchedule, DriverStatus, Vehicle, VehicleSchedule, VehicleStatus } from '../types';
-import { Clock, Check, X, User, Car, Wrench, AlertCircle, Settings2 } from 'lucide-react';
+import { Clock, Check, X, User, Car, Wrench, AlertCircle, Settings2, Timer } from 'lucide-react';
 
 interface Props {
   mode: 'driver' | 'vehicle';
@@ -11,6 +11,7 @@ interface Props {
   vehicleSchedule?: VehicleSchedule[];
   onUpdateSlot?: (id: string, hour: number, newStatus: any) => void;
   onUpdateVehicleStatus?: (id: string, status: VehicleStatus) => void;
+  selectedDate?: string; // 接收当前选择的日期
 }
 
 const AvailabilityGrid: React.FC<Props> = ({ 
@@ -20,11 +21,35 @@ const AvailabilityGrid: React.FC<Props> = ({
   vehicles, 
   vehicleSchedule, 
   onUpdateSlot,
-  onUpdateVehicleStatus
+  onUpdateVehicleStatus,
+  selectedDate
 }) => {
   const [editingSlot, setEditingSlot] = useState<{ id: string; name: string; hour: number; currentStatus: any } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-  
+  const [now, setNow] = useState(new Date());
+
+  // 每分钟更新一次当前时间
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 判断是否为今天，如果是今天则显示时间线
+  const isToday = useMemo(() => {
+    if (!selectedDate) return true;
+    const todayStr = new Date().toISOString().split('T')[0];
+    return selectedDate === todayStr;
+  }, [selectedDate]);
+
+  // 计算时间线的位置百分比
+  const timeLinePosition = useMemo(() => {
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    return ((hours + minutes / 60) / 24) * 100;
+  }, [now]);
+
   const getDriverStatusStyle = (status: DriverStatus) => {
     switch (status) {
       case DriverStatus.BUSY: 
@@ -95,7 +120,7 @@ const AvailabilityGrid: React.FC<Props> = ({
       </div>
 
       <div className="overflow-x-auto flex-1 scrollbar-hide">
-        <div className="min-w-[1100px] p-6">
+        <div className="min-w-[1100px] p-6 relative">
           <div className="flex mb-4">
             <div className="w-64 flex-shrink-0 font-black text-slate-400 text-[10px] uppercase tracking-widest pl-2">
               {mode === 'driver' ? '司机档案 (Name/ID)' : '车辆资产 (Plate/Model)'}
@@ -109,7 +134,25 @@ const AvailabilityGrid: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 relative">
+            {/* 实时时间轴 */}
+            {isToday && (
+              <div 
+                className="absolute top-0 bottom-0 z-40 flex flex-col items-center pointer-events-none transition-all duration-1000 ease-linear"
+                style={{ 
+                  left: `calc(16rem + 8px + (100% - 16rem - 16px) * ${timeLinePosition / 100})`, 
+                  transform: 'translateX(-50%)' 
+                }}
+              >
+                <div className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-lg mb-1 flex items-center gap-1">
+                  <Timer className="w-2.5 h-2.5" />
+                  {now.getHours().toString().padStart(2, '0')}:{now.getMinutes().toString().padStart(2, '0')}
+                </div>
+                <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500 via-rose-500 to-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.3)]"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-white shadow-md"></div>
+              </div>
+            )}
+
             {mode === 'driver' && drivers?.map(driver => {
               const driverSched = schedule?.find(s => s.driverId === driver.id);
               return (
@@ -126,7 +169,7 @@ const AvailabilityGrid: React.FC<Props> = ({
                       <div
                         key={slot.hour}
                         onClick={() => handleSlotClick(driver.id, driver.name, slot.hour, slot.status)}
-                        className={`h-10 rounded-lg transition-all cursor-pointer border-b-4 ${getDriverStatusStyle(slot.status)} hover:scale-105 hover:z-10`}
+                        className={`h-10 rounded-lg transition-all cursor-pointer border-b-4 ${getDriverStatusStyle(slot.status)} hover:scale-105 hover:z-50`}
                       ></div>
                     ))}
                   </div>
@@ -154,7 +197,7 @@ const AvailabilityGrid: React.FC<Props> = ({
                       <div
                         key={slot.hour}
                         onClick={() => handleSlotClick(vehicle.id, vehicle.plateNumber, slot.hour, null)}
-                        className={`h-10 rounded-lg transition-all border-b-4 ${getVehicleStatusStyle(slot.isAvailable, vehicle.status)} hover:scale-105 hover:z-10`}
+                        className={`h-10 rounded-lg transition-all border-b-4 ${getVehicleStatusStyle(slot.isAvailable, vehicle.status)} hover:scale-105 hover:z-50`}
                         title={`${vehicle.plateNumber} | ${slot.hour}:00 | ${vehicle.status}`}
                       ></div>
                     ))}
