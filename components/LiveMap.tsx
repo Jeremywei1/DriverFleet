@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
-import { Driver, DriverStatus } from '../types';
+import { Driver, DriverStatus, Vehicle } from '../types';
 import { Map, Navigation, Car, Truck, Zap, User, Radio } from 'lucide-react';
 
 interface Props {
   drivers: Driver[];
+  vehicles: Vehicle[];
 }
 
-const LiveMap: React.FC<Props> = ({ drivers }) => {
+const LiveMap: React.FC<Props> = ({ drivers, vehicles }) => {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'FREE' | 'BUSY'>('ALL');
+
+  // Find the vehicle associated with the selected driver for details panel
+  const selectedVehicle = selectedDriver 
+    ? vehicles.find(v => v.currentDriverId === selectedDriver.id) 
+    : null;
 
   const filteredDrivers = drivers.filter(d => {
     if (filter === 'ALL') return true;
@@ -69,33 +75,37 @@ const LiveMap: React.FC<Props> = ({ drivers }) => {
         </div>
 
         {/* Drivers on Map */}
-        {filteredDrivers.map(driver => (
-          <div
-            key={driver.id}
-            onClick={() => setSelectedDriver(driver)}
-            className="absolute transition-all duration-500 ease-in-out cursor-pointer hover:scale-125 group/marker z-20"
-            style={{ left: `${driver.coordinates.x}%`, top: `${driver.coordinates.y}%` }}
-          >
-            {/* Pulsing Effect for Free Drivers */}
-            {driver.currentStatus === DriverStatus.FREE && (
-              <div className="absolute -inset-2 bg-emerald-400/30 rounded-full animate-ping"></div>
-            )}
-            
-            {/* Driver Dot */}
-            <div className={`
-              w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-white
-              ${getStatusColor(driver.currentStatus)}
-              ${selectedDriver?.id === driver.id ? 'ring-4 ring-indigo-400 ring-opacity-50 scale-110' : ''}
-            `}>
-               {driver.vehicleType === 'Truck' ? <Truck className="w-4 h-4" /> : <Car className="w-4 h-4" />}
-            </div>
+        {filteredDrivers.map(driver => {
+          // Find vehicle associated with this specific driver for icon selection
+          const vehicle = vehicles.find(v => v.currentDriverId === driver.id);
+          return (
+            <div
+              key={driver.id}
+              onClick={() => setSelectedDriver(driver)}
+              className="absolute transition-all duration-500 ease-in-out cursor-pointer hover:scale-125 group/marker z-20"
+              style={{ left: `${driver.coordinates.x}%`, top: `${driver.coordinates.y}%` }}
+            >
+              {/* Pulsing Effect for Free Drivers */}
+              {driver.currentStatus === DriverStatus.FREE && (
+                <div className="absolute -inset-2 bg-emerald-400/30 rounded-full animate-ping"></div>
+              )}
+              
+              {/* Driver Dot */}
+              <div className={`
+                w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-white
+                ${getStatusColor(driver.currentStatus)}
+                ${selectedDriver?.id === driver.id ? 'ring-4 ring-indigo-400 ring-opacity-50 scale-110' : ''}
+              `}>
+                 {vehicle?.type === 'Truck' ? <Truck className="w-4 h-4" /> : <Car className="w-4 h-4" />}
+              </div>
 
-            {/* Label on Hover */}
-            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg opacity-0 group-hover/marker:opacity-100 transition-opacity whitespace-nowrap z-30">
-              {driver.name} ({driver.currentStatus === 'FREE' ? '空闲' : '忙碌'})
+              {/* Label on Hover */}
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg opacity-0 group-hover/marker:opacity-100 transition-opacity whitespace-nowrap z-30">
+                {driver.name} ({driver.currentStatus === 'FREE' ? '空闲' : '忙碌'})
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Emergency Dispatch Simulation (Clicking anywhere on empty map) */}
         <div className="absolute top-4 right-4 z-10">
@@ -127,7 +137,8 @@ const LiveMap: React.FC<Props> = ({ drivers }) => {
                 <div className="flex justify-between items-start mb-1">
                    <div>
                      <h3 className="text-xl font-bold text-slate-800">{selectedDriver.name}</h3>
-                     <p className="text-sm text-slate-500">{selectedDriver.plateNumber} • {selectedDriver.vehicleType}</p>
+                     {/* Fix: use selectedVehicle to access plateNumber and type instead of selectedDriver */}
+                     <p className="text-sm text-slate-500">{selectedVehicle?.plateNumber || '无牌照'} • {selectedVehicle?.type || '未知车型'}</p>
                    </div>
                    <div className={`px-2 py-1 rounded-lg text-xs font-bold ${
                       selectedDriver.currentStatus === 'FREE' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'

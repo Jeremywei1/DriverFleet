@@ -7,12 +7,8 @@ export const getFleetAnalysis = async (
   schedules: DriverSchedule[]
 ): Promise<string> => {
   try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      return "未找到 API 密钥。请配置环境变量。";
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
+    // API key is obtained directly from process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
     // Summarize data to avoid token limits
     const statsSummary = stats.map(s => `${s.name}: ${s.completedOrders} 单, ${s.totalHours} 小时, 效率分: ${s.efficiencyScore}`).join('\n');
@@ -49,8 +45,9 @@ export const getFleetAnalysis = async (
       语气要专业且具鼓励性。请使用 Markdown 格式。
     `;
 
+    // Updated model to gemini-3-flash-preview as per coding guidelines for basic text tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { generateDrivers, generateSchedule, generateTasks, generateStats, generateVehicles } from './services/mockData';
 import AvailabilityGrid from './components/AvailabilityGrid';
@@ -171,7 +170,8 @@ const App: React.FC = () => {
 
           {activeTab === 'map' && (
              <div className="h-full bg-white rounded-[40px] overflow-hidden border border-slate-100 shadow-sm">
-                <LiveMap drivers={drivers} />
+                {/* Fixed: Pass vehicles prop to LiveMap */}
+                <LiveMap drivers={drivers} vehicles={vehicles} />
              </div>
           )}
 
