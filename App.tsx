@@ -17,14 +17,12 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'drivers' | 'map' | 'monitor' | 'vehicles' | 'matching'>('dashboard');
   const [monitorSubTab, setMonitorSubTab] = useState<'driver' | 'vehicle'>('driver');
 
-  // 初始化统一状态
   const [drivers, setDrivers] = useState<Driver[]>(() => generateDrivers());
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => generateVehicles([]));
   const [tasks, setTasks] = useState<Task[]>([]);
   const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>(() => generateSchedule(drivers, currentDate));
   const [vehicleSchedules, setVehicleSchedules] = useState<VehicleSchedule[]>(() => generateVehicleSchedule(vehicles, currentDate));
   
-  // 核心反应逻辑：当车辆状态变更（如转为维修）时，自动锁定该车辆的时间轴
   useEffect(() => {
     setVehicleSchedules(prevSchedules => 
       prevSchedules.map(sched => {
@@ -34,7 +32,6 @@ const App: React.FC = () => {
             ...sched,
             slots: sched.slots.map(slot => ({
               ...slot,
-              // 如果车辆状态不是 ACTIVE，则所有时段强制置为不可用
               isAvailable: vehicle.status === VehicleStatus.ACTIVE ? slot.isAvailable : false
             }))
           };
@@ -46,7 +43,6 @@ const App: React.FC = () => {
 
   const stats = useMemo(() => generateStats(drivers), [drivers]);
 
-  // 处理任务创建
   const handleCreateTask = useCallback((partialTask: Partial<Task>) => {
     const newTask: Task = {
       id: `task-${Date.now()}`,
@@ -64,35 +60,26 @@ const App: React.FC = () => {
 
     setTasks(prev => [newTask, ...prev]);
 
-    const startH = new Date(newTask.startTime).getHours();
-    const endH = new Date(newTask.endTime).getHours();
-    const busyHours = Array.from({ length: Math.max(1, endH - startH) }, (_, i) => startH + i);
+    // 计算槽位索引 (30min 为一个槽位)
+    const startDate = new Date(newTask.startTime);
+    const endDate = new Date(newTask.endTime);
+    const startIdx = startDate.getHours() * 2 + (startDate.getMinutes() >= 30 ? 1 : 0);
+    const endIdx = endDate.getHours() * 2 + (endDate.getMinutes() >= 30 ? 1 : 0);
+    const busyIdxs = Array.from({ length: Math.max(1, endIdx - startIdx) }, (_, i) => startIdx + i);
 
-    // 同步更新司机排班
     if (newTask.driverId) {
       setDriverSchedules(prev => prev.map(s => {
         if (s.driverId === newTask.driverId) {
-          return {
-            ...s,
-            slots: s.slots.map(slot => 
-              busyHours.includes(slot.hour) ? { ...slot, status: DriverStatus.BUSY, taskId: newTask.id } : slot
-            )
-          };
+          return { ...s, slots: s.slots.map((slot, idx) => busyIdxs.includes(idx) ? { ...slot, status: DriverStatus.BUSY, taskId: newTask.id } : slot) };
         }
         return s;
       }));
     }
 
-    // 同步更新车辆排班
     if (newTask.vehicleId) {
       setVehicleSchedules(prev => prev.map(s => {
         if (s.vehicleId === newTask.vehicleId) {
-          return {
-            ...s,
-            slots: s.slots.map(slot => 
-              busyHours.includes(slot.hour) ? { ...slot, isAvailable: false, taskId: newTask.id } : slot
-            )
-          };
+          return { ...s, slots: s.slots.map((slot, idx) => busyIdxs.includes(idx) ? { ...slot, isAvailable: false, taskId: newTask.id } : slot) };
         }
         return s;
       }));
@@ -101,10 +88,11 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
   }, []);
 
-  const handleUpdateSlot = useCallback((driverId: string, hour: number, newStatus: DriverStatus) => {
+  // 批量更新槽位状态
+  const handleUpdateSlotRange = useCallback((driverId: string, startIdx: number, endIdx: number, newStatus: DriverStatus) => {
     setDriverSchedules(prev => prev.map(s => s.driverId === driverId ? {
       ...s,
-      slots: s.slots.map(slot => slot.hour === hour ? { ...slot, status: newStatus } : slot)
+      slots: s.slots.map((slot, idx) => (idx >= startIdx && idx <= endIdx) ? { ...slot, status: newStatus } : slot)
     } : s));
   }, []);
 
@@ -116,7 +104,6 @@ const App: React.FC = () => {
     setVehicles(prev => prev.map(v => v.id === updatedVehicle.id ? { ...updatedVehicle } : v));
   }, []);
 
-  // 新增：从可用性网格直接更新车辆状态
   const handleUpdateVehicleStatus = useCallback((id: string, status: VehicleStatus) => {
     setVehicles(prev => prev.map(v => v.id === id ? { ...v, status } : v));
   }, []);
@@ -134,7 +121,7 @@ const App: React.FC = () => {
         <nav className="flex-1 p-5 space-y-1.5 overflow-y-auto scrollbar-hide">
           {[
             { id: 'dashboard', label: '运营枢纽', icon: LayoutDashboard },
-            { id: 'matching', label: '资源匹配', icon: Zap },
+            { id: 'matching', label: '资源规划', icon: Zap },
             { id: 'monitor', label: '运力监控', icon: Clock },
             { id: 'map', label: '上帝视角', icon: Map },
             { id: 'reports', label: '绩效看板', icon: BarChart3 },
@@ -162,8 +149,8 @@ const App: React.FC = () => {
            <div className="flex items-center gap-6">
              <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">
                {activeTab === 'dashboard' && '运营枢纽'}
-               {activeTab === 'matching' && '调度资源匹配'}
-               {activeTab === 'monitor' && '全资源监控轴'}
+               {activeTab === 'matching' && '排程规划中心'}
+               {activeTab === 'monitor' && '资源负荷轴'}
                {activeTab === 'map' && '上帝视角'}
                {activeTab === 'reports' && '绩效看板'}
                {activeTab === 'drivers' && '司机管理'}
@@ -186,8 +173,8 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
               <div className="xl:col-span-2 flex flex-col gap-10">
                 <AIInsight stats={stats} tasks={tasks} schedules={driverSchedules} />
-                <div className="bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm">
-                  <AvailabilityGrid mode="driver" drivers={drivers} schedule={driverSchedules} onUpdateSlot={handleUpdateSlot} selectedDate={currentDate} />
+                <div className="bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm overflow-hidden">
+                  <AvailabilityGrid mode="driver" drivers={drivers} schedule={driverSchedules} onUpdateSlot={handleUpdateSlotRange} selectedDate={currentDate} />
                 </div>
               </div>
               <div className="xl:col-span-1">
@@ -231,13 +218,13 @@ const App: React.FC = () => {
                     onClick={() => setMonitorSubTab('driver')}
                     className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${monitorSubTab === 'driver' ? 'bg-indigo-600 text-white shadow-indigo-200 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                   >
-                    司机运力表
+                    司机运力轴
                   </button>
                   <button 
                     onClick={() => setMonitorSubTab('vehicle')}
                     className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${monitorSubTab === 'vehicle' ? 'bg-indigo-600 text-white shadow-indigo-200 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                   >
-                    车辆可用性
+                    资产可用性
                   </button>
                </div>
                
@@ -248,7 +235,7 @@ const App: React.FC = () => {
                     schedule={driverSchedules} 
                     vehicles={vehicles} 
                     vehicleSchedule={vehicleSchedules}
-                    onUpdateSlot={monitorSubTab === 'driver' ? handleUpdateSlot : undefined}
+                    onUpdateSlot={monitorSubTab === 'driver' ? handleUpdateSlotRange : undefined}
                     onUpdateVehicleStatus={handleUpdateVehicleStatus}
                     selectedDate={currentDate}
                  />

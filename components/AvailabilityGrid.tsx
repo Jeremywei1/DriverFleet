@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Driver, DriverSchedule, DriverStatus, Vehicle, VehicleSchedule, VehicleStatus } from '../types';
-import { Clock, Check, X, User, Car, Wrench, AlertCircle, Settings2, Timer, Moon } from 'lucide-react';
+import { Clock, Check, User, Car, Wrench, Settings2, Timer, Moon, MousePointer2 } from 'lucide-react';
 
 interface Props {
   mode: 'driver' | 'vehicle';
@@ -9,9 +9,9 @@ interface Props {
   schedule?: DriverSchedule[];
   vehicles?: Vehicle[];
   vehicleSchedule?: VehicleSchedule[];
-  onUpdateSlot?: (id: string, hour: number, newStatus: any) => void;
+  onUpdateSlot?: (id: string, startIdx: number, endIdx: number, newStatus: any) => void;
   onUpdateVehicleStatus?: (id: string, status: VehicleStatus) => void;
-  selectedDate?: string; // 接收当前选择的日期
+  selectedDate?: string;
 }
 
 const AvailabilityGrid: React.FC<Props> = ({ 
@@ -24,26 +24,22 @@ const AvailabilityGrid: React.FC<Props> = ({
   onUpdateVehicleStatus,
   selectedDate
 }) => {
-  const [editingSlot, setEditingSlot] = useState<{ id: string; name: string; hour: number; currentStatus: any } | null>(null);
+  const [dragStart, setDragStart] = useState<{ id: string; index: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<number | null>(null);
+  const [selectionModal, setSelectionModal] = useState<{ id: string; name: string; start: number; end: number } | null>(null);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [now, setNow] = useState(new Date());
 
-  // 每分钟更新一次当前时间
   useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 60000);
+    const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // 判断是否为今天，如果是今天则显示时间线
   const isToday = useMemo(() => {
     if (!selectedDate) return true;
-    const todayStr = new Date().toISOString().split('T')[0];
-    return selectedDate === todayStr;
+    return selectedDate === new Date().toISOString().split('T')[0];
   }, [selectedDate]);
 
-  // 计算时间线的位置百分比
   const timeLinePosition = useMemo(() => {
     const hours = now.getHours();
     const minutes = now.getMinutes();
@@ -52,127 +48,142 @@ const AvailabilityGrid: React.FC<Props> = ({
 
   const getDriverStatusStyle = (status: DriverStatus) => {
     switch (status) {
-      case DriverStatus.BUSY: 
-        return 'bg-rose-300 border-rose-400 shadow-[inset_0_-3px_0_rgba(0,0,0,0.1)]';
-      case DriverStatus.FREE: 
-        return 'bg-emerald-100 border-emerald-200 shadow-[inset_0_-3px_0_rgba(0,0,0,0.05)]';
-      case DriverStatus.BREAK: 
-        return 'bg-amber-200 border-amber-300 shadow-[inset_0_-3px_0_rgba(0,0,0,0.1)]';
-      case DriverStatus.OFF_DUTY: 
-        return 'bg-slate-100 border-slate-200 opacity-60';
-      default: 
-        return 'bg-gray-100';
+      case DriverStatus.BUSY: return 'bg-rose-400 border-rose-500';
+      case DriverStatus.FREE: return 'bg-emerald-200 border-emerald-300';
+      case DriverStatus.BREAK: return 'bg-amber-300 border-amber-400';
+      case DriverStatus.OFF_DUTY: return 'bg-slate-200 border-slate-300 opacity-60';
+      default: return 'bg-gray-100';
     }
   };
 
   const getVehicleStatusStyle = (isAvailable: boolean, status: VehicleStatus) => {
-    if (status === VehicleStatus.MAINTENANCE) {
-      return 'bg-amber-100 border-amber-200 opacity-80 cursor-pointer hover:bg-amber-200';
-    }
-    if (status === VehicleStatus.OUT_OF_SERVICE) {
-      return 'bg-slate-200 border-slate-300 opacity-60 cursor-pointer hover:bg-slate-300';
-    }
-    return isAvailable 
-      ? 'bg-indigo-100 border-indigo-200 shadow-[inset_0_-3px_0_rgba(0,0,0,0.05)] cursor-pointer hover:bg-indigo-200' 
-      : 'bg-slate-300 border-slate-400 opacity-90 cursor-pointer hover:bg-slate-400';
+    if (status === VehicleStatus.MAINTENANCE) return 'bg-amber-100 border-amber-200 opacity-80';
+    if (status === VehicleStatus.OUT_OF_SERVICE) return 'bg-slate-200 border-slate-300 opacity-60';
+    return isAvailable ? 'bg-indigo-100 border-indigo-200' : 'bg-slate-400 border-slate-500 opacity-90';
   };
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const slots48 = Array.from({ length: 48 }, (_, i) => i);
 
-  const handleSlotClick = (id: string, name: string, hour: number, currentStatus: any) => {
-    if (mode === 'driver') {
-      // 移除原有的 OFF_DUTY 拦截逻辑，支持全时段点击
-      setEditingSlot({ id, name, hour, currentStatus });
-    } else {
-      const v = vehicles?.find(veh => veh.id === id);
-      if (v) setEditingVehicle(v);
+  const onMouseDown = (id: string, index: number) => {
+    if (mode === 'vehicle') return;
+    setDragStart({ id, index });
+    setDragEnd(index);
+  };
+
+  const onMouseEnter = (index: number) => {
+    if (dragStart) setDragEnd(index);
+  };
+
+  const onMouseUp = () => {
+    if (dragStart && dragEnd !== null) {
+      const start = Math.min(dragStart.index, dragEnd);
+      const end = Math.max(dragStart.index, dragEnd);
+      const name = drivers?.find(d => d.id === dragStart.id)?.name || '未知司机';
+      setSelectionModal({ id: dragStart.id, name, start, end });
     }
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  const formatIdxToTime = (idx: number) => {
+    const h = Math.floor(idx / 2);
+    const m = idx % 2 === 0 ? '00' : '30';
+    return `${h.toString().padStart(2, '0')}:${m}`;
   };
 
   const gridStyle = {
     display: 'grid',
-    gridTemplateColumns: 'repeat(24, minmax(0, 1fr))',
-    gap: '6px'
+    gridTemplateColumns: 'repeat(48, minmax(0, 1fr))',
+    gap: '0px' // 移除 gap，使用边框和背景色区分，让视觉更连续
   };
 
   return (
-    <div className="bg-white rounded-[32px] overflow-hidden flex flex-col h-full relative">
+    <div className="bg-white rounded-[32px] overflow-hidden flex flex-col h-full relative select-none" onMouseLeave={() => {setDragStart(null); setDragEnd(null);}}>
       <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
         <h2 className="text-lg font-black text-slate-800 flex items-center gap-3">
           <Clock className="w-6 h-6 text-indigo-500 fill-indigo-100" />
-          {mode === 'driver' ? '全员运力监控表' : '车辆资产可用性矩阵'}
+          {mode === 'driver' ? '全时段精细运力轴' : '资产高频可用性矩阵'}
         </h2>
-        <div className="flex gap-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-          {mode === 'driver' ? (
-            <>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-100 border border-emerald-200 rounded shadow-sm"></div> 空闲</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-rose-300 border border-rose-400 rounded shadow-sm"></div> 忙碌</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-amber-200 border border-amber-300 rounded shadow-sm"></div> 休息</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-100 border border-slate-200 rounded opacity-60"></div> 下班</div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-indigo-100 border border-indigo-200 rounded shadow-sm"></div> 可用</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-300 border border-slate-400 rounded shadow-sm"></div> 任务中</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-amber-100 border border-amber-200 rounded shadow-sm"></div> 维保</div>
-            </>
-          )}
+        <div className="flex items-center gap-4 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">30分钟精度 / 垂直小时对齐</span>
         </div>
       </div>
 
       <div className="overflow-x-auto flex-1 scrollbar-hide">
-        <div className="min-w-[1100px] p-6 relative">
+        <div className="min-w-[1400px] p-6 relative" onMouseUp={onMouseUp}>
+          
+          {/* 时间轴头部 */}
           <div className="flex mb-4">
             <div className="w-64 flex-shrink-0 font-black text-slate-400 text-[10px] uppercase tracking-widest pl-2">
-              {mode === 'driver' ? '司机档案 (Name/ID)' : '车辆资产 (Plate/Model)'}
+              资源与任务分配状况
             </div>
             <div className="flex-1" style={gridStyle}>
-              {hours.map(h => (
-                <div key={h} className="text-center text-[11px] font-black text-slate-400 font-mono">
-                  {h.toString().padStart(2, '0')}
-                </div>
-              ))}
+              {slots48.map(idx => {
+                const isHourStart = idx % 2 === 0;
+                return (
+                  <div key={idx} className={`text-center py-2 text-[9px] font-black transition-colors ${isHourStart ? 'text-slate-800 border-l border-slate-200' : 'text-slate-300'}`}>
+                    {isHourStart ? formatIdxToTime(idx) : ''}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <div className="space-y-4 relative">
-            {/* 实时时间轴 */}
+            {/* 实时时间线 */}
             {isToday && (
               <div 
                 className="absolute top-0 bottom-0 z-40 flex flex-col items-center pointer-events-none transition-all duration-1000 ease-linear"
                 style={{ 
-                  left: `calc(16rem + 8px + (100% - 16rem - 16px) * ${timeLinePosition / 100})`, 
+                  left: `calc(16rem + (100% - 16rem) * ${timeLinePosition / 100})`, 
                   transform: 'translateX(-50%)' 
                 }}
               >
-                <div className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-lg mb-1 flex items-center gap-1">
-                  <Timer className="w-2.5 h-2.5" />
+                <div className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-lg mb-1 whitespace-nowrap">
                   {now.getHours().toString().padStart(2, '0')}:{now.getMinutes().toString().padStart(2, '0')}
                 </div>
-                <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500 via-rose-500 to-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.3)]"></div>
-                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-white shadow-md"></div>
+                <div className="w-0.5 flex-1 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
               </div>
             )}
 
             {mode === 'driver' && drivers?.map(driver => {
               const driverSched = schedule?.find(s => s.driverId === driver.id);
               return (
-                <div key={driver.id} className="flex items-center group">
-                  <div className="w-64 flex-shrink-0 flex items-center gap-3 pr-4">
-                    <img src={driver.avatar} className="w-10 h-10 rounded-xl border border-slate-100 shadow-sm" alt="" />
-                    <div className="truncate">
-                      <p className="font-black text-slate-800 text-sm tracking-tight">{driver.name}</p>
-                      <p className="text-[9px] font-black text-slate-400 uppercase">Driver ID: {driver.id}</p>
-                    </div>
+                <div key={driver.id} className="flex items-center group/row">
+                  <div className="w-64 flex-shrink-0 flex items-center gap-3 pr-4 group-hover/row:translate-x-1 transition-transform">
+                    <img src={driver.avatar} className="w-9 h-9 rounded-xl border border-slate-100 shadow-sm" alt="" />
+                    <span className="font-black text-slate-700 text-xs truncate group-hover/row:text-indigo-600">{driver.name}</span>
                   </div>
-                  <div className="flex-1 bg-slate-50/50 rounded-2xl p-2 border border-slate-100/80" style={gridStyle}>
-                    {driverSched?.slots.map((slot) => (
-                      <div
-                        key={slot.hour}
-                        onClick={() => handleSlotClick(driver.id, driver.name, slot.hour, slot.status)}
-                        className={`h-10 rounded-lg transition-all cursor-pointer border-b-4 ${getDriverStatusStyle(slot.status)} hover:scale-105 hover:z-50`}
-                      ></div>
-                    ))}
+                  <div className="flex-1 bg-white rounded-xl overflow-hidden p-1 border border-slate-100" style={gridStyle}>
+                    {driverSched?.slots.map((slot, idx) => {
+                      const hourNum = Math.floor(idx / 2);
+                      const isEvenHour = hourNum % 2 === 0;
+                      const isHourStart = idx % 2 === 0;
+                      const isDragging = dragStart?.id === driver.id && dragEnd !== null && 
+                        idx >= Math.min(dragStart.index, dragEnd) && idx <= Math.max(dragStart.index, dragEnd);
+                      
+                      return (
+                        <div
+                          key={idx}
+                          onMouseDown={() => onMouseDown(driver.id, idx)}
+                          onMouseEnter={() => onMouseEnter(idx)}
+                          className={`
+                            h-10 transition-all cursor-crosshair relative border-b border-white/20
+                            ${isEvenHour ? 'bg-slate-50/50' : 'bg-white'} 
+                            ${isHourStart ? 'border-l border-slate-100' : ''}
+                            ${isDragging ? 'z-20 scale-y-110' : ''}
+                          `}
+                        >
+                          {/* 内部状态色块 */}
+                          <div className={`
+                            absolute inset-1 rounded-md transition-all border
+                            ${getDriverStatusStyle(slot.status)}
+                            ${isDragging ? 'ring-2 ring-indigo-500 shadow-xl !bg-indigo-400' : ''}
+                          `}></div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -181,27 +192,34 @@ const AvailabilityGrid: React.FC<Props> = ({
             {mode === 'vehicle' && vehicles?.map(vehicle => {
               const vSched = vehicleSchedule?.find(s => s.vehicleId === vehicle.id);
               return (
-                <div key={vehicle.id} className="flex items-center group">
-                  <div className="w-64 flex-shrink-0 flex items-center gap-3 pr-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
-                      vehicle.status === VehicleStatus.MAINTENANCE ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-indigo-50 border-indigo-100 text-indigo-500'
-                    }`}>
-                      {vehicle.status === VehicleStatus.MAINTENANCE ? <Wrench className="w-5 h-5" /> : <Car className="w-5 h-5" />}
+                <div key={vehicle.id} className="flex items-center group/row">
+                  <div className="w-64 flex-shrink-0 flex items-center gap-3 pr-4 cursor-pointer" onClick={() => setEditingVehicle(vehicle)}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center border bg-white shadow-sm group-hover/row:border-indigo-200 group-hover/row:scale-105 transition-all">
+                      {vehicle.status === VehicleStatus.MAINTENANCE ? <Wrench className="w-4 h-4 text-amber-500" /> : <Car className="w-4 h-4 text-indigo-500" />}
                     </div>
-                    <div className="truncate">
-                      <p className="font-black text-slate-800 text-sm tracking-tight">{vehicle.plateNumber}</p>
-                      <p className="text-[9px] font-black text-slate-400 uppercase truncate">{vehicle.model}</p>
-                    </div>
+                    <span className="text-[10px] font-black text-slate-600 truncate group-hover/row:text-indigo-600">{vehicle.plateNumber}</span>
                   </div>
-                  <div className="flex-1 bg-slate-50/50 rounded-2xl p-2 border border-slate-100/80" style={gridStyle}>
-                    {vSched?.slots.map((slot) => (
-                      <div
-                        key={slot.hour}
-                        onClick={() => handleSlotClick(vehicle.id, vehicle.plateNumber, slot.hour, null)}
-                        className={`h-10 rounded-lg transition-all border-b-4 ${getVehicleStatusStyle(slot.isAvailable, vehicle.status)} hover:scale-105 hover:z-50`}
-                        title={`${vehicle.plateNumber} | ${slot.hour}:00 | ${vehicle.status}`}
-                      ></div>
-                    ))}
+                  <div className="flex-1 bg-white rounded-xl overflow-hidden p-1 border border-slate-100" style={gridStyle}>
+                    {vSched?.slots.map((slot, idx) => {
+                      const hourNum = Math.floor(idx / 2);
+                      const isEvenHour = hourNum % 2 === 0;
+                      const isHourStart = idx % 2 === 0;
+                      return (
+                        <div
+                          key={idx}
+                          className={`
+                            h-10 relative border-b border-white/20
+                            ${isEvenHour ? 'bg-slate-50/50' : 'bg-white'} 
+                            ${isHourStart ? 'border-l border-slate-100' : ''}
+                          `}
+                        >
+                          <div className={`
+                            absolute inset-1 rounded-md transition-all border
+                            ${getVehicleStatusStyle(slot.isAvailable, vehicle.status)}
+                          `}></div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -210,34 +228,37 @@ const AvailabilityGrid: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 司机排班编辑 */}
-      {editingSlot && (
+      {/* 批量操作弹窗保持不变 */}
+      {selectionModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setEditingSlot(null)}></div>
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setSelectionModal(null)}></div>
           <div className="relative bg-white rounded-[40px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-8">
-              <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-8">快速调度修改</h3>
-              <div className="mb-8 p-6 bg-slate-50 rounded-[24px] border border-slate-100">
-                <p className="text-xs text-slate-400 font-bold uppercase mb-1">Target</p>
-                <p className="font-black text-slate-800 text-lg">{editingSlot.name} · {editingSlot.hour}:00</p>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight mb-6">批量排程指派</h3>
+              <div className="mb-6 p-5 bg-indigo-50 rounded-[24px] border border-indigo-100">
+                <p className="text-[10px] text-indigo-400 font-bold uppercase mb-1">已选时段 ({selectionModal.name})</p>
+                <div className="flex items-center gap-2 font-black text-indigo-700">
+                  <span>{formatIdxToTime(selectionModal.start)}</span>
+                  <div className="h-px flex-1 bg-indigo-200"></div>
+                  <span>{formatIdxToTime(selectionModal.end + 1)}</span>
+                </div>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {[
                   { id: DriverStatus.FREE, label: '设为空闲待命' },
-                  { id: DriverStatus.BUSY, label: '手动标记忙碌' },
+                  { id: DriverStatus.BUSY, label: '设为任务忙碌' },
                   { id: DriverStatus.BREAK, label: '设为临时休息' },
-                  { id: DriverStatus.OFF_DUTY, label: '标记为已下班', icon: <Moon className="w-4 h-4" /> },
+                  { id: DriverStatus.OFF_DUTY, label: '设为下班状态' },
                 ].map((option) => (
                   <button
                     key={option.id}
                     onClick={() => {
-                      onUpdateSlot?.(editingSlot.id, editingSlot.hour, option.id);
-                      setEditingSlot(null);
+                      onUpdateSlot?.(selectionModal.id, selectionModal.start, selectionModal.end, option.id);
+                      setSelectionModal(null);
                     }}
-                    className={`w-full p-5 rounded-[24px] border-2 border-transparent bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 transition-all font-black text-sm uppercase tracking-widest flex items-center justify-between group`}
+                    className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-indigo-600 hover:text-white transition-all font-black text-xs uppercase tracking-widest text-left"
                   >
                     {option.label}
-                    {option.icon && <span className="opacity-40 group-hover:opacity-100 transition-opacity">{option.icon}</span>}
                   </button>
                 ))}
               </div>
@@ -246,40 +267,24 @@ const AvailabilityGrid: React.FC<Props> = ({
         </div>
       )}
 
-      {/* 车辆状态一键修改 */}
       {editingVehicle && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setEditingVehicle(null)}></div>
-          <div className="relative bg-white rounded-[40px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-8">
-              <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-8 flex items-center gap-3">
-                <Settings2 className="w-6 h-6 text-indigo-500" />
-                车辆可用性管理
-              </h3>
-              <div className="mb-8 p-6 bg-slate-50 rounded-[24px] border border-slate-100">
-                <p className="text-xs text-slate-400 font-bold uppercase mb-1">Vehicle</p>
-                <p className="font-black text-slate-800 text-lg">{editingVehicle.plateNumber}</p>
-                <p className="text-xs text-slate-500">{editingVehicle.model}</p>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { id: VehicleStatus.ACTIVE, label: '标记为：正常运行', color: 'text-emerald-600' },
-                  { id: VehicleStatus.MAINTENANCE, label: '标记为：维保检修', color: 'text-amber-600' },
-                  { id: VehicleStatus.OUT_OF_SERVICE, label: '标记为：停止服务', color: 'text-rose-600' },
-                ].map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => {
-                      onUpdateVehicleStatus?.(editingVehicle.id, option.id);
-                      setEditingVehicle(null);
-                    }}
-                    className={`w-full p-5 rounded-[24px] border-2 border-transparent bg-slate-50 hover:bg-slate-100 transition-all font-black text-sm uppercase tracking-widest ${option.color} flex items-center justify-between group`}
-                  >
-                    {option.label}
-                    {editingVehicle.status === option.id && <Check className="w-5 h-5" />}
-                  </button>
-                ))}
-              </div>
+          <div className="relative bg-white rounded-[40px] shadow-2xl w-full max-w-sm overflow-hidden p-8 animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
+              <Settings2 className="w-5 h-5 text-indigo-500" />
+              资产可用性
+            </h3>
+            <div className="space-y-3">
+              {[VehicleStatus.ACTIVE, VehicleStatus.MAINTENANCE, VehicleStatus.OUT_OF_SERVICE].map(status => (
+                <button
+                  key={status}
+                  onClick={() => { onUpdateVehicleStatus?.(editingVehicle.id, status); setEditingVehicle(null); }}
+                  className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 font-black text-xs uppercase tracking-widest text-left"
+                >
+                  {status}
+                </button>
+              ))}
             </div>
           </div>
         </div>
