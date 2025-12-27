@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sparkles, RefreshCw, Loader2 } from 'lucide-react';
 import { getFleetAnalysis } from '../services/geminiService';
@@ -22,51 +23,53 @@ const AIInsight: React.FC<Props> = ({ stats, tasks, schedules }) => {
   };
 
   useEffect(() => {
-    // Initial fetch only if not already fetched (optional, here we do it on mount)
     if (!analysis) {
        fetchAnalysis();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl shadow-lg text-white p-6 relative overflow-hidden">
-      {/* Decorative Circles */}
-      <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 rounded-full bg-white opacity-10 blur-xl"></div>
-      <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 rounded-full bg-indigo-400 opacity-20 blur-xl"></div>
+    <div className="bg-[#1E293B] rounded-[48px] shadow-2xl text-white p-10 relative overflow-hidden border border-slate-700/50">
+      {/* 极简光晕装饰 */}
+      <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-indigo-500/10 blur-[80px]"></div>
+      <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 rounded-full bg-slate-500/10 blur-[80px]"></div>
 
       <div className="relative z-10">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-yellow-300" />
-            AI 智能车队分析
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-black italic flex items-center gap-4 tracking-tighter uppercase">
+            <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            AI 智能洞察报告
           </h2>
           <button 
             onClick={fetchAnalysis}
             disabled={loading}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors disabled:opacity-50"
+            className="w-12 h-12 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all disabled:opacity-50"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
           </button>
         </div>
 
-        <div className="bg-white/10 rounded-xl p-4 text-sm leading-relaxed min-h-[150px] backdrop-blur-sm border border-white/10 shadow-inner">
+        <div className="bg-black/20 rounded-[32px] p-8 text-sm leading-relaxed min-h-[180px] border border-white/5 shadow-inner">
           {loading ? (
-             <div className="h-full flex flex-col items-center justify-center space-y-3 py-8">
-               <Loader2 className="w-8 h-8 animate-spin text-indigo-200" />
-               <p className="text-indigo-100 animate-pulse">正在深入分析车队数据...</p>
+             <div className="h-full flex flex-col items-center justify-center space-y-4 py-12">
+               <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+               <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">正在通过神经网络分析车队效能...</p>
              </div>
           ) : (
-            <div className="prose prose-invert prose-sm max-w-none">
+            <div className="prose prose-invert prose-sm max-w-none font-medium text-slate-300">
               <ReactMarkdown>{analysis}</ReactMarkdown>
             </div>
           )}
         </div>
         
-        <div className="mt-4 text-xs text-indigo-200 flex justify-between items-center">
-          {/* Fixed: Updated label to match the Gemini 3 series model used in the service */}
-          <span>由 Gemini 3 Flash 驱动</span>
-          <span>刚刚更新</span>
+        <div className="mt-8 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">由 Gemini 3 Pro 驱动实时模型</span>
+          </div>
+          <span className="text-[9px] font-black text-slate-600 uppercase">数据最近更新: 刚刚</span>
         </div>
       </div>
     </div>

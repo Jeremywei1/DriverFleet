@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -5,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DriverFleet Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            gridTemplateColumns: {
+              '24': 'repeat(24, minmax(0, 1fr))',
+            }
+          }
+        }
+      }
+    </script>
     <style>
       /* Custom scrollbar for the grid */
       .scrollbar-hide::-webkit-scrollbar {
@@ -13,6 +25,12 @@
       .scrollbar-hide {
           -ms-overflow-style: none;
           scrollbar-width: none;
+      }
+      /* Smooth transitions for 3D items */
+      .transition-all {
+        transition-property: all;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 150ms;
       }
     </style>
   <script type="importmap">
