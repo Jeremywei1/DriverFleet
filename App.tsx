@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { generateDrivers, generateSchedule, generateTasks, generateStats, generateVehicles, generateVehicleSchedule } from './services/mockData';
+import { storage } from './services/storageService';
 import AvailabilityGrid from './components/AvailabilityGrid';
 import TaskList from './components/TaskList';
 import PerformanceReport from './components/PerformanceReport';
@@ -9,20 +10,42 @@ import DriverManagement from './components/DriverManagement';
 import VehicleManagement from './components/VehicleManagement';
 import MatchingCenter from './components/MatchingCenter';
 import LiveMap from './components/LiveMap'; 
-import { LayoutDashboard, Users, BarChart3, Settings, Calendar as CalendarIcon, Bell, Map, Clock, Car, Zap } from 'lucide-react';
+import { LayoutDashboard, Users, BarChart3, Settings, Calendar as CalendarIcon, Bell, Map, Clock, Car, Zap, Database } from 'lucide-react';
 import { DriverStatus, Driver, Vehicle, Task, DriverSchedule, VehicleSchedule, VehicleStatus } from './types';
 
 const App: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'drivers' | 'map' | 'monitor' | 'vehicles' | 'matching'>('dashboard');
   const [monitorSubTab, setMonitorSubTab] = useState<'driver' | 'vehicle'>('driver');
+  const [lastSync, setLastSync] = useState<string | null>(storage.getLastSync());
 
-  const [drivers, setDrivers] = useState<Driver[]>(() => generateDrivers());
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() => generateVehicles([]));
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>(() => generateSchedule(drivers, currentDate));
-  const [vehicleSchedules, setVehicleSchedules] = useState<VehicleSchedule[]>(() => generateVehicleSchedule(vehicles, currentDate));
-  
+  // 初始化数据：优先从存储加载，否则生成初始数据
+  const [drivers, setDrivers] = useState<Driver[]>(() => 
+    storage.load<Driver[]>('DRIVERS') || generateDrivers()
+  );
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => 
+    storage.load<Vehicle[]>('VEHICLES') || generateVehicles([])
+  );
+  const [tasks, setTasks] = useState<Task[]>(() => 
+    storage.load<Task[]>('TASKS') || []
+  );
+  const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>(() => 
+    storage.load<DriverSchedule[]>('DRIVER_SCHEDULES') || generateSchedule(drivers, currentDate)
+  );
+  const [vehicleSchedules, setVehicleSchedules] = useState<VehicleSchedule[]>(() => 
+    storage.load<VehicleSchedule[]>('VEHICLE_SCHEDULES') || generateVehicleSchedule(vehicles, currentDate)
+  );
+
+  // 当重要数据变动时，自动保存到存储
+  useEffect(() => {
+    storage.save('DRIVERS', drivers);
+    storage.save('VEHICLES', vehicles);
+    storage.save('TASKS', tasks);
+    storage.save('DRIVER_SCHEDULES', driverSchedules);
+    storage.save('VEHICLE_SCHEDULES', vehicleSchedules);
+    setLastSync(new Date().toISOString());
+  }, [drivers, vehicles, tasks, driverSchedules, vehicleSchedules]);
+
   useEffect(() => {
     setVehicleSchedules(prevSchedules => 
       prevSchedules.map(sched => {
@@ -60,7 +83,6 @@ const App: React.FC = () => {
 
     setTasks(prev => [newTask, ...prev]);
 
-    // 计算槽位索引 (30min 为一个槽位)
     const startDate = new Date(newTask.startTime);
     const endDate = new Date(newTask.endTime);
     const startIdx = startDate.getHours() * 2 + (startDate.getMinutes() >= 30 ? 1 : 0);
@@ -88,7 +110,6 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
   }, []);
 
-  // 批量更新槽位状态
   const handleUpdateSlotRange = useCallback((driverId: string, startIdx: number, endIdx: number, newStatus: DriverStatus) => {
     setDriverSchedules(prev => prev.map(s => s.driverId === driverId ? {
       ...s,
@@ -142,6 +163,19 @@ const App: React.FC = () => {
             </button>
           ))}
         </nav>
+        
+        {/* 数据状态指示器 */}
+        <div className="p-6 bg-slate-950/50 border-t border-slate-800">
+           <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                 <Database className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">持久化存储已启用</span>
+                 <span className="text-[8px] text-slate-600 font-bold truncate">上次同步: {lastSync ? new Date(lastSync).toLocaleTimeString() : '尚未同步'}</span>
+              </div>
+           </div>
+        </div>
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -165,6 +199,24 @@ const App: React.FC = () => {
                   className="bg-transparent text-sm text-slate-700 focus:outline-none font-black cursor-pointer"
                 />
              </div>
+           </div>
+           
+           <div className="flex items-center gap-4">
+              <button 
+                onClick={() => {
+                  if(confirm('确定要清除所有本地数据并重置吗？')) {
+                    storage.clear();
+                    window.location.reload();
+                  }
+                }}
+                className="p-3 text-slate-300 hover:text-rose-500 transition-colors"
+                title="重置数据"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+              <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
+                <Bell className="w-5 h-5" />
+              </div>
            </div>
         </header>
 

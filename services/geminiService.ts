@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { DriverStats, Task, DriverSchedule } from '../types';
 
@@ -7,14 +8,12 @@ export const getFleetAnalysis = async (
   schedules: DriverSchedule[]
 ): Promise<string> => {
   try {
-    // Fixed: API key must be obtained directly from process.env.API_KEY without modification per guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    // Summarize data to avoid token limits
-    const statsSummary = stats.map(s => `${s.name}: ${s.completedOrders} 单, ${s.totalHours} 小时, 效率分: ${s.efficiencyScore}`).join('\n');
-    const taskSummary = `今日总任务数: ${tasks.length}, 高优先级: ${tasks.filter(t => t.priority === 'HIGH').length}`;
+    // 汇总实际任务数据
+    const statsSummary = stats.map(s => `${s.name}: 已完工 ${s.completedOrders} 单, 总计 ${s.totalHours} 小时, 评分 ${s.efficiencyScore}`).join('\n');
+    const taskDetails = tasks.slice(0, 5).map(t => `- ${t.title} (${t.status})`).join('\n');
     
-    // Calculate busy rate roughly
     let totalSlots = 0;
     let busySlots = 0;
     schedules.forEach(s => {
@@ -28,32 +27,33 @@ export const getFleetAnalysis = async (
     const utilization = totalSlots > 0 ? Math.round((busySlots / totalSlots) * 100) : 0;
 
     const prompt = `
-      作为一名车队管理 AI 助手，请分析以下司机数据：
+      作为车队运营专家及奖金结算顾问，分析以下实时数据：
 
-      **每日概览：**
-      - ${taskSummary}
-      - 白天车队利用率 (8点-18点): ${utilization}%
+      **今日业务详情：**
+      - 总调度单量: ${tasks.length}
+      - 核心运营时段利用率: ${utilization}%
+      - 最新任务概览:
+      ${taskDetails}
 
-      **司机绩效 (月度抽样)：**
+      **司机长期绩效档案：**
       ${statsSummary}
 
-      请提供一份简明扼要的战略报告（使用中文），包括：
-      1. **异常检测**：是否有司机过度劳累或工作量不足？
-      2. **运营效率**：今日车队整体表现如何？
-      3. **改进建议**：2-3 条具体的排班或激励建议。
+      请生成一份具有“奖金激励导向”的专业报告（中文）：
+      1. **异常监控**：分析是否有司机疲劳驾驶或工时不足。
+      2. **结算建议**：基于今日和月度表现，哪位司机最有潜力获得“今日服务之星”或额外奖金？
+      3. **运营优化**：针对当前利用率，提供 2 条提高派单效率的策略。
       
-      语气要专业且具鼓励性。请使用 Markdown 格式。
+      报告应专业且具有洞察力，直接针对未来的奖金发放提供逻辑参考。使用 Markdown 格式。
     `;
 
-    // Fixed: Using 'gemini-3-flash-preview' for basic text tasks as per model guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
-    return response.text || "未生成分析结果。";
+    return response.text || "数据量不足，无法生成奖金结算建议。";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "暂时无法生成 AI 洞察。请检查网络或 API 密钥。";
+    return "AI 分析引擎暂时离线，但您的本地数据已安全保存。";
   }
 };
