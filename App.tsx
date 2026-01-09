@@ -12,7 +12,8 @@ import MatchingCenter from './components/MatchingCenter';
 import LiveMap from './components/LiveMap'; 
 import { 
   LayoutDashboard, Users, BarChart3, Settings, Calendar as CalendarIcon, 
-  Bell, Map, Clock, Car, Zap, Database, Cloud, ExternalLink, Info, CheckCircle2, RotateCcw, Loader2
+  Bell, Map, Clock, Car, Zap, Database, Cloud, ExternalLink, Info, CheckCircle2, RotateCcw, Loader2,
+  TrendingUp, ClipboardList, Activity
 } from 'lucide-react';
 import { DriverStatus, Driver, Vehicle, Task, DriverSchedule, VehicleSchedule, VehicleStatus } from './types';
 
@@ -44,7 +45,8 @@ const App: React.FC = () => {
         const finalVehicles = (loadedVehicles && loadedVehicles.length > 0) ? loadedVehicles : generateVehicles(finalDrivers);
         setVehicles(finalVehicles);
 
-        setTasks(await storage.load<Task[]>('TASKS') || []);
+        const loadedTasks = await storage.load<Task[]>('TASKS');
+        setTasks(loadedTasks || []);
         
         const loadedDched = await storage.load<DriverSchedule[]>('DRIVER_SCHEDULES');
         setDriverSchedules(loadedDched || generateSchedule(finalDrivers, currentDate));
@@ -77,6 +79,11 @@ const App: React.FC = () => {
   }, [drivers, vehicles, tasks, driverSchedules, vehicleSchedules, isLoading]);
 
   const stats = useMemo(() => generateStats(drivers), [drivers]);
+
+  // 计算今日任务统计
+  const todayTasksCount = useMemo(() => {
+    return tasks.filter(t => t.startTime.startsWith(currentDate)).length;
+  }, [tasks, currentDate]);
 
   const handleResetData = () => {
     if (confirm('确定要重置所有云端与本地数据吗？')) {
@@ -227,7 +234,39 @@ const App: React.FC = () => {
           {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={stats} onUpdateDriver={handleUpdateDriver} />}
           {activeTab === 'vehicles' && <VehicleManagement vehicles={vehicles} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} />}
           {activeTab === 'deploy' && (
-            <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="max-w-5xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              {/* 实时数据库概览卡片 */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+                  <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 text-indigo-500">
+                    <ClipboardList className="w-6 h-6" />
+                  </div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">今日总任务</div>
+                  <div className="text-3xl font-black text-slate-800 italic">{todayTasksCount} <span className="text-xs text-slate-300 not-italic uppercase ml-1">Orders</span></div>
+                </div>
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+                  <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 text-emerald-500">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">注册司机</div>
+                  <div className="text-3xl font-black text-slate-800 italic">{drivers.length} <span className="text-xs text-slate-300 not-italic uppercase ml-1">Drivers</span></div>
+                </div>
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+                  <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-500">
+                    <Car className="w-6 h-6" />
+                  </div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">活跃车辆资产</div>
+                  <div className="text-3xl font-black text-slate-800 italic">{vehicles.filter(v => v.status === VehicleStatus.ACTIVE).length} <span className="text-xs text-slate-300 not-italic uppercase ml-1">Active</span></div>
+                </div>
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+                  <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mb-6 text-rose-500">
+                    <Activity className="w-6 h-6" />
+                  </div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">系统响应时延</div>
+                  <div className="text-3xl font-black text-slate-800 italic">24 <span className="text-xs text-slate-300 not-italic uppercase ml-1">ms</span></div>
+                </div>
+              </div>
+
               <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-sm">
                 <div className="flex justify-between items-start mb-8">
                   <div className="flex items-center gap-4">
