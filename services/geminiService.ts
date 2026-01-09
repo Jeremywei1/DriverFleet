@@ -2,6 +2,13 @@
 import { GoogleGenAI } from "@google/genai";
 import { DriverStats, Task, DriverSchedule } from '../types';
 
+// 解决浏览器环境下 TypeScript 对 process.env 的报错
+declare var process: {
+  env: {
+    API_KEY: string;
+  };
+};
+
 export const getFleetAnalysis = async (
   stats: DriverStats[],
   tasks: Task[],
