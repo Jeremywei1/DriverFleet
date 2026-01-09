@@ -5,6 +5,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DriverFleet Pro | 车队管家</title>
+    
+    <!-- 1. 核心垫片：确保在任何 JS 运行前 process.env 已经存在 -->
+    <script>
+      window.process = { env: { API_KEY: "" } };
+      // 全局错误捕获，防止白屏不知所措
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML === "") {
+          root.innerHTML = `<div style="padding: 20px; color: #e11d48; font-family: sans-serif;">
+            <h1 style="font-weight: 900;">应用启动失败</h1>
+            <p style="font-size: 14px; opacity: 0.8;">${msg}</p>
+            <button onclick="localStorage.clear(); location.reload();" style="margin-top: 20px; padding: 10px 20px; background: #0f172a; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+              清除缓存并重试
+            </button>
+          </div>`;
+        }
+        return false;
+      };
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -17,45 +37,35 @@
         }
       }
     </script>
+    
     <style>
-      /* 隐藏滚动条但保留功能 */
-      .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-      }
-      .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-      }
-      /* 全局平滑过渡 */
-      .transition-all {
-        transition-property: all;
-        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-        transition-duration: 200ms;
-      }
-      /* 防止移动端点击高亮 */
-      * {
-        -webkit-tap-highlight-color: transparent;
-      }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .transition-all { transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1); }
+      * { -webkit-tap-highlight-color: transparent; }
+      html, body, #root { height: 100%; margin: 0; padding: 0; }
     </style>
-  <script type="importmap">
+
+    <script type="importmap">
 {
   "imports": {
-    "recharts": "https://esm.sh/recharts@^3.5.1",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0",
+    "recharts": "https://esm.sh/recharts@2.13.3",
+    "react-markdown": "https://esm.sh/react-markdown@9.0.1",
+    "@google/genai": "https://esm.sh/@google/genai@1.3.0",
+    "vite": "https://esm.sh/vite@^7.3.1",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.1"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
-</head>
-  <body class="bg-slate-50 text-slate-900 font-sans antialiased overflow-hidden">
+  </head>
+  <body class="bg-slate-50 text-slate-900 font-sans antialiased">
     <div id="root"></div>
-    <!-- 核心入口脚本：修复部署后打不开的关键 -->
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
