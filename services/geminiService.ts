@@ -15,6 +15,7 @@ export const getFleetAnalysis = async (
   schedules: DriverSchedule[]
 ): Promise<string> => {
   try {
+    // Initialize GoogleGenAI with the API key from environment variables
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     // 汇总实际任务数据
@@ -53,11 +54,13 @@ export const getFleetAnalysis = async (
       报告应专业且具有洞察力，直接针对未来的奖金发放提供逻辑参考。使用 Markdown 格式。
     `;
 
+    // Updated model to gemini-3-pro-preview for complex reasoning tasks as per guidelines and UI consistency
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
     });
 
+    // Access the text property directly on the GenerateContentResponse object
     return response.text || "数据量不足，无法生成奖金结算建议。";
   } catch (error) {
     console.error("Gemini API Error:", error);

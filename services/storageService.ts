@@ -1,56 +1,62 @@
 
-import { Driver, Vehicle, Task, DriverSchedule, VehicleSchedule } from '../types';
-
 const STORAGE_KEYS = {
-  DRIVERS: 'fleet_drivers_v2', // 使用 v2 键名避免与可能损坏的旧数据冲突
-  VEHICLES: 'fleet_vehicles_v2',
-  TASKS: 'fleet_tasks_v2',
-  DRIVER_SCHEDULES: 'fleet_driver_schedules_v2',
-  VEHICLE_SCHEDULES: 'fleet_vehicle_schedules_v2',
+  DRIVERS: 'fleet_drivers_v3',
+  VEHICLES: 'fleet_vehicles_v3',
+  TASKS: 'fleet_tasks_v3',
+  DRIVER_SCHEDULES: 'fleet_driver_schedules_v3',
+  VEHICLE_SCHEDULES: 'fleet_vehicle_schedules_v3',
   LAST_SYNC: 'fleet_last_sync'
 };
 
 export const storage = {
-  save: (key: keyof typeof STORAGE_KEYS, data: any) => {
+  // 异步保存到 D1 和本地
+  save: async (key: keyof typeof STORAGE_KEYS, data: any) => {
+    const jsonString = JSON.stringify(data);
+    // 1. 先存本地缓存
+    localStorage.setItem(STORAGE_KEYS[key], jsonString);
+    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+
+    // 2. 尝试同步到 D1
     try {
-      if (!data) return;
-      localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(data));
-      localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+      await fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: STORAGE_KEYS[key], value: data })
+      });
     } catch (e) {
-      console.warn('Storage Save Warning:', e);
+      console.warn('D1 Sync failed, using local only:', e);
     }
   },
 
-  load: <T>(key: keyof typeof STORAGE_KEYS): T | null => {
+  // 异步从 D1 加载，失败用本地
+  load: async <T>(key: keyof typeof STORAGE_KEYS): Promise<T | null> => {
+    // 1. 尝试从云端获取
     try {
-      const data = localStorage.getItem(STORAGE_KEYS[key]);
-      if (!data) return null;
-      
-      const parsed = JSON.parse(data);
-      // 基础验证：如果是数组，确保它不为空且格式大致正确
-      if (Array.isArray(parsed) && parsed.length === 0) return null;
-      
-      return parsed as T;
+      const response = await fetch(`/api/data?key=${STORAGE_KEYS[key]}`);
+      if (response.ok) {
+        const cloudData = await response.json();
+        if (cloudData) {
+          localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(cloudData)); // 同步到本地
+          return cloudData as T;
+        }
+      }
     } catch (e) {
-      console.error('Storage Load Error, clearing corrupted data:', e);
-      localStorage.removeItem(STORAGE_KEYS[key]);
+      console.warn('Cloud load failed, falling back to local storage');
+    }
+
+    // 2. 回退到本地
+    const localData = localStorage.getItem(STORAGE_KEYS[key]);
+    if (!localData) return null;
+    try {
+      return JSON.parse(localData) as T;
+    } catch {
       return null;
     }
   },
 
   clear: () => {
-    try {
-      Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-    } catch (e) {
-      console.error('Storage Clear Error:', e);
-    }
+    Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
   },
 
-  getLastSync: () => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.LAST_SYNC);
-    } catch {
-      return null;
-    }
-  }
+  getLastSync: () => localStorage.getItem(STORAGE_KEYS.LAST_SYNC)
 };
