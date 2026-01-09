@@ -1,62 +1,62 @@
 
-const STORAGE_KEYS = {
-  DRIVERS: 'fleet_drivers_v3',
-  VEHICLES: 'fleet_vehicles_v3',
-  TASKS: 'fleet_tasks_v3',
-  DRIVER_SCHEDULES: 'fleet_driver_schedules_v3',
-  VEHICLE_SCHEDULES: 'fleet_vehicle_schedules_v3',
-  LAST_SYNC: 'fleet_last_sync'
+const TABLE_MAP: Record<string, string> = {
+  DRIVERS: 'drivers',
+  VEHICLES: 'vehicles',
+  TASKS: 'tasks',
+  DRIVER_SCHEDULES: 'driver_schedules',
+  VEHICLE_SCHEDULES: 'vehicle_schedules'
 };
 
 export const storage = {
-  // 异步保存到 D1 和本地
-  save: async (key: keyof typeof STORAGE_KEYS, data: any) => {
-    const jsonString = JSON.stringify(data);
-    // 1. 先存本地缓存
-    localStorage.setItem(STORAGE_KEYS[key], jsonString);
-    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+  save: async (key: string, data: any) => {
+    const tableName = TABLE_MAP[key] || key;
+    localStorage.setItem(key, JSON.stringify(data));
 
-    // 2. 尝试同步到 D1
     try {
+      // 如果是数组（列表），我们目前简单处理为循环保存或发送整个对象
+      // 在生产环境中建议只发送变更的部分
       await fetch('/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: STORAGE_KEYS[key], value: data })
+        body: JSON.stringify({ table: tableName, data: data })
       });
     } catch (e) {
-      console.warn('D1 Sync failed, using local only:', e);
+      console.warn('D1 Sync failed:', e);
     }
   },
 
-  // 异步从 D1 加载，失败用本地
-  load: async <T>(key: keyof typeof STORAGE_KEYS): Promise<T | null> => {
-    // 1. 尝试从云端获取
+  load: async <T>(key: string): Promise<T | null> => {
+    const tableName = TABLE_MAP[key] || key;
+    
     try {
-      const response = await fetch(`/api/data?key=${STORAGE_KEYS[key]}`);
+      const response = await fetch(`/api/data?table=${tableName}`);
       if (response.ok) {
         const cloudData = await response.json();
         if (cloudData) {
-          localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(cloudData)); // 同步到本地
+          // 修正坐标数据的映射格式 (从 DB 的 x, y 转回坐标对象)
+          if (tableName === 'drivers' && Array.isArray(cloudData)) {
+            const formatted = cloudData.map((d: any) => ({
+              ...d,
+              coordinates: { x: d.coord_x, y: d.coord_y }
+            }));
+            localStorage.setItem(key, JSON.stringify(formatted));
+            return formatted as any;
+          }
+          localStorage.setItem(key, JSON.stringify(cloudData));
           return cloudData as T;
         }
       }
     } catch (e) {
-      console.warn('Cloud load failed, falling back to local storage');
+      console.warn('Cloud load failed, using local fallback');
     }
 
-    // 2. 回退到本地
-    const localData = localStorage.getItem(STORAGE_KEYS[key]);
-    if (!localData) return null;
-    try {
-      return JSON.parse(localData) as T;
-    } catch {
-      return null;
-    }
+    const localData = localStorage.getItem(key);
+    return localData ? JSON.parse(localData) : null;
   },
 
   clear: () => {
-    Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+    localStorage.clear();
   },
 
-  getLastSync: () => localStorage.getItem(STORAGE_KEYS.LAST_SYNC)
+  getLastSync: () => localStorage.getItem('fleet_last_sync')
 };
