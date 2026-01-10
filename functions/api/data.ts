@@ -1,4 +1,4 @@
-// Added missing Cloudflare Pages and D1 type definitions
+
 interface D1Database {
   prepare: (query: string) => {
     bind: (...values: any[]) => any;
@@ -25,17 +25,18 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { searchParams } = new URL(context.request.url);
   const table = searchParams.get('table');
   const id = searchParams.get('id');
+  const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
   if (!table) return new Response('Missing table param', { status: 400 });
 
   try {
     let result;
     if (id) {
-      // 查询单条数据
-      result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+      // 增加 date 分区查询逻辑
+      result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ? AND id = ?`).bind(date, id).first();
     } else {
-      // 查询整表
-      const { results } = await context.env.DB.prepare(`SELECT * FROM ${table}`).all();
+      // 查询当日分区数据
+      const { results } = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ?`).bind(date).all();
       result = results;
     }
     
@@ -50,12 +51,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const { table, data } = await context.request.json() as { table: string, data: any };
+    const date = data.date || new Date().toISOString().split('T')[0];
     
     if (table === 'drivers') {
       await context.env.DB.prepare(`
-        INSERT OR REPLACE INTO drivers (id, name, avatar, rating, currentStatus, phone, joinDate, coord_x, coord_y)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(data.id, data.name, data.avatar, data.rating, data.currentStatus, data.phone, data.joinDate, data.coordinates.x, data.coordinates.y).run();
+        INSERT OR REPLACE INTO drivers (date, id, name, avatar, rating, currentStatus, phone, joinDate, coord_x, coord_y)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(date, data.id, data.name, data.avatar, data.rating, data.currentStatus, data.phone, data.joinDate, data.coordinates.x, data.coordinates.y).run();
     } else if (table === 'vehicles') {
       await context.env.DB.prepare(`
         INSERT OR REPLACE INTO vehicles (id, plateNumber, model, type, status, currentDriverId, mileage, lastService)
@@ -63,11 +65,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       `).bind(data.id, data.plateNumber, data.model, data.type, data.status, data.currentDriverId, data.mileage, data.lastService).run();
     } else if (table === 'tasks') {
       await context.env.DB.prepare(`
-        INSERT OR REPLACE INTO tasks (id, title, driverId, vehicleId, status, startTime, endTime, locationStart, locationEnd, distanceKm, priority)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(data.id, data.title, data.driverId, data.vehicleId, data.status, data.startTime, data.endTime, data.locationStart, data.locationEnd, data.distanceKm, data.priority).run();
+        INSERT OR REPLACE INTO tasks (date, id, title, driverId, vehicleId, status, startTime, endTime, locationStart, locationEnd, distanceKm, priority)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(date, data.id, data.title, data.driverId, data.vehicleId, data.status, data.startTime, data.endTime, data.locationStart, data.locationEnd, data.distanceKm, data.priority).run();
     } else {
-      // 处理排班等其他 key-value 或 简单 JSON 存储
       await context.env.DB.prepare(`
         INSERT OR REPLACE INTO app_data (key, value) VALUES (?, ?)
       `).bind(table, JSON.stringify(data)).run();
