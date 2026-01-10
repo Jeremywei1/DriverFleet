@@ -2,52 +2,65 @@
 const TABLE_MAP: Record<string, string> = {
   DRIVERS: 'drivers',
   VEHICLES: 'vehicles',
-  TASKS: 'tasks',
-  DRIVER_SCHEDULES: 'driver_schedules',
-  VEHICLE_SCHEDULES: 'vehicle_schedules'
+  TASKS: 'tasks'
 };
 
 export const storage = {
+  // 保存全量数据到本地，同时尝试同步到云端
   save: async (key: string, data: any) => {
     const tableName = TABLE_MAP[key] || key;
     localStorage.setItem(key, JSON.stringify(data));
 
     try {
-      // 如果是数组（列表），我们目前简单处理为循环保存或发送整个对象
-      // 在生产环境中建议只发送变更的部分
       await fetch('/api/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table: tableName, data: data })
       });
     } catch (e) {
-      console.warn('D1 Sync failed:', e);
+      console.warn(`D1 Sync failed for ${tableName}:`, e);
     }
   },
 
-  load: async <T>(key: string): Promise<T | null> => {
+  // 新增：同步单条数据（任务、司机或车辆），解决“只更新第一项”的问题
+  syncSingle: async (tableName: 'tasks' | 'drivers' | 'vehicles', data: any) => {
+    try {
+      await fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: tableName, data: data })
+      });
+    } catch (e) {
+      console.error(`Failed to sync single ${tableName} record:`, e);
+    }
+  },
+
+  deleteTask: async (id: string, date: string) => {
+    try {
+      await fetch(`/api/data?table=tasks&id=${id}&date=${date}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.error('Cloud delete failed:', e);
+    }
+  },
+
+  // 扩展 load 方法，支持传递 query 字符串（如 date=2023-10-27）
+  load: async <T>(key: string, queryParams: string = ''): Promise<T | null> => {
     const tableName = TABLE_MAP[key] || key;
+    const url = `/api/data?table=${tableName}${queryParams ? '&' + queryParams : ''}`;
     
     try {
-      const response = await fetch(`/api/data?table=${tableName}`);
+      const response = await fetch(url);
       if (response.ok) {
         const cloudData = await response.json();
         if (cloudData) {
-          // 修正坐标数据的映射格式 (从 DB 的 x, y 转回坐标对象)
-          if (tableName === 'drivers' && Array.isArray(cloudData)) {
-            const formatted = cloudData.map((d: any) => ({
-              ...d,
-              coordinates: { x: d.coord_x, y: d.coord_y }
-            }));
-            localStorage.setItem(key, JSON.stringify(formatted));
-            return formatted as any;
-          }
           localStorage.setItem(key, JSON.stringify(cloudData));
           return cloudData as T;
         }
       }
     } catch (e) {
-      console.warn('Cloud load failed, using local fallback');
+      console.warn('Cloud load failed, using local fallback', e);
     }
 
     const localData = localStorage.getItem(key);

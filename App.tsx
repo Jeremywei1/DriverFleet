@@ -12,13 +12,10 @@ import MatchingCenter from './components/MatchingCenter';
 import { 
   LayoutDashboard, Users, BarChart3, Settings, Calendar as CalendarIcon, 
   Bell, Clock, Car, Zap, Database, Cloud, CheckCircle2, Loader2,
-  ClipboardList, Activity, Code, Copy, Lock, KeyRound, LogOut, ArrowRight
+  ClipboardList, Activity, Code, Copy, Lock, KeyRound, LogOut, ArrowRight, Info
 } from 'lucide-react';
-import { DriverStatus, Driver, Vehicle, Task, DriverSchedule, VehicleSchedule, VehicleStatus } from './types';
+import { DriverStatus, Driver, Vehicle, Task, DriverSchedule, VehicleSchedule } from './types';
 
-// ----------------------------------------------------------------------
-// 登录拦截组件 (保持现状)
-// ----------------------------------------------------------------------
 const LoginGate: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
@@ -77,9 +74,6 @@ const LoginGate: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   );
 };
 
-// ----------------------------------------------------------------------
-// 主应用组件
-// ----------------------------------------------------------------------
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => sessionStorage.getItem('fleet_session') === 'active');
   const [currentDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -92,8 +86,6 @@ const App: React.FC = () => {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [driverSchedules, setDriverSchedules] = useState<DriverSchedule[]>([]);
-  const [vehicleSchedules, setVehicleSchedules] = useState<VehicleSchedule[]>([]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -108,14 +100,9 @@ const App: React.FC = () => {
         const finalVehicles = (loadedVehicles && loadedVehicles.length > 0) ? loadedVehicles : generateVehicles(finalDrivers);
         setVehicles(finalVehicles);
 
-        const loadedTasks = await storage.load<Task[]>('TASKS');
+        // 初始化加载时，显式传入当前日期
+        const loadedTasks = await storage.load<Task[]>('TASKS', `date=${currentDate}`);
         setTasks(loadedTasks || []);
-        
-        const loadedDched = await storage.load<DriverSchedule[]>('DRIVER_SCHEDULES');
-        setDriverSchedules(loadedDched || generateSchedule(finalDrivers, currentDate));
-
-        const loadedVsched = await storage.load<VehicleSchedule[]>('VEHICLE_SCHEDULES');
-        setVehicleSchedules(loadedVsched || generateVehicleSchedule(finalVehicles, currentDate));
         
         setIsCloudConnected(true);
       } catch (e) {
@@ -128,16 +115,15 @@ const App: React.FC = () => {
     initData();
   }, [currentDate, isLoggedIn]);
 
+  // 后台静默保存逻辑只针对本地缓存，云端同步改为事件触发
   useEffect(() => {
     if (!isLoading && isLoggedIn) {
-      storage.save('DRIVERS', drivers);
-      storage.save('VEHICLES', vehicles);
-      storage.save('TASKS', tasks);
-      storage.save('DRIVER_SCHEDULES', driverSchedules);
-      storage.save('VEHICLE_SCHEDULES', vehicleSchedules);
+      localStorage.setItem('DRIVERS', JSON.stringify(drivers));
+      localStorage.setItem('VEHICLES', JSON.stringify(vehicles));
+      localStorage.setItem('TASKS', JSON.stringify(tasks));
       setLastSync(new Date().toISOString());
     }
-  }, [drivers, vehicles, tasks, driverSchedules, vehicleSchedules, isLoading, isLoggedIn]);
+  }, [drivers, vehicles, tasks, isLoading, isLoggedIn]);
 
   const stats = useMemo(() => generateStats(drivers), [drivers]);
 
@@ -157,49 +143,75 @@ const App: React.FC = () => {
     }
   };
 
-  const handleCreateTask = useCallback((partialTask: Partial<Task>) => {
+  const handleCreateTask = useCallback(async (partialTask: Partial<Task>) => {
+    const now = new Date();
+    const ts = `${now.toISOString().split('T')[0].replace(/-/g, '')} - ${now.toTimeString().split(' ')[0]}`;
+
     const newTask: Task = {
       id: `task-${Date.now()}`,
-      title: partialTask.title || '新接送任务',
+      title: partialTask.title || '新任务',
       driverId: partialTask.driverId || null,
       vehicleId: partialTask.vehicleId || null,
-      status: 'PENDING',
+      status: 'IN_PROGRESS', 
       startTime: partialTask.startTime || new Date().toISOString(),
       endTime: partialTask.endTime || new Date().toISOString(),
-      locationStart: partialTask.locationStart || '未指定起点',
-      locationEnd: partialTask.locationEnd || '未指定终点',
-      distanceKm: Math.floor(Math.random() * 30) + 5,
-      priority: partialTask.priority || 'MEDIUM'
+      locationStart: partialTask.locationStart || '起点',
+      locationEnd: partialTask.locationEnd || '终点',
+      distanceKm: partialTask.distanceKm || 10,
+      priority: partialTask.priority || 'MEDIUM',
+      date: partialTask.date || currentDate,
+      operation_timestamp: ts
     };
+
+    // 1. 立即更新本地状态
     setTasks(prev => [newTask, ...prev]);
+    
+    // 2. 立即同步到云端数据库，确保单个任务被持久化
+    await storage.syncSingle('tasks', newTask);
+    
     setActiveTab('dashboard');
+  }, [currentDate]);
+
+  const handleDeleteTask = useCallback(async (id: string, date: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    await storage.deleteTask(id, date);
   }, []);
 
-  const handleUpdateSlotRange = useCallback((driverId: string, startIdx: number, endIdx: number, newStatus: DriverStatus) => {
-    setDriverSchedules(prev => prev.map(s => s.driverId === driverId ? {
-      ...s,
-      slots: s.slots.map((slot, idx) => (idx >= startIdx && idx <= endIdx) ? { ...slot, status: newStatus } : slot)
-    } : s));
-  }, []);
-
-  const handleUpdateDriver = (updatedDriver: Driver) => setDrivers(prev => prev.map(d => d.id === updatedDriver.id ? updatedDriver : d));
-  const handleUpdateVehicle = (updatedVehicle: Vehicle) => setVehicles(prev => prev.map(v => v.id === updatedVehicle.id ? updatedVehicle : v));
-  const handleAddVehicle = (newVehicle: Vehicle) => {
-    setVehicles(prev => [...prev, newVehicle]);
-    const newSched = generateVehicleSchedule([newVehicle], currentDate)[0];
-    setVehicleSchedules(prev => [...prev, newSched]);
+  const handleUpdateDriver = async (updatedDriver: Driver) => {
+    setDrivers(prev => prev.map(d => d.id === updatedDriver.id ? updatedDriver : d));
+    await storage.syncSingle('drivers', updatedDriver);
   };
-  const handleUpdateVehicleStatus = (id: string, status: VehicleStatus) => setVehicles(prev => prev.map(v => v.id === id ? { ...v, status } : v));
+
+  const handleUpdateVehicle = async (updatedVehicle: Vehicle) => {
+    setVehicles(prev => prev.map(v => v.id === updatedVehicle.id ? updatedVehicle : v));
+    await storage.syncSingle('vehicles', updatedVehicle);
+  };
+
+  const handleAddVehicle = async (newVehicle: Vehicle) => {
+    setVehicles(prev => [...prev, newVehicle]);
+    await storage.syncSingle('vehicles', newVehicle);
+  };
+
+  const schemaSQL = `
+-- ⚠️ 全量底表重构脚本 (D1 控制台运行)
+DROP TABLE IF EXISTS drivers;
+DROP TABLE IF EXISTS vehicles;
+DROP TABLE IF EXISTS tasks;
+
+CREATE TABLE drivers (id TEXT PRIMARY KEY, name TEXT, gender TEXT, phone TEXT, joinDate TEXT, experience_years INTEGER, isActive INTEGER DEFAULT 1);
+CREATE TABLE vehicles (id TEXT PRIMARY KEY, plateNumber TEXT, model TEXT, type TEXT, color TEXT, seats INTEGER, age INTEGER, mileage INTEGER, lastService TEXT, currentDriverId TEXT, isActive INTEGER DEFAULT 1);
+CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, vehicleId TEXT, status TEXT, startTime TEXT, endTime TEXT, locationStart TEXT, locationEnd TEXT, distanceKm REAL, priority TEXT, operation_timestamp TEXT);
+  `.trim();
 
   if (!isLoggedIn) return <LoginGate onLogin={handleLogin} />;
 
   if (isLoading) {
     return (
-      <div className="h-screen w-screen bg-slate-900 flex flex-col items-center justify-center gap-6">
+       <div className="h-screen w-screen bg-slate-900 flex flex-col items-center justify-center gap-6">
         <div className="w-20 h-20 bg-indigo-600 rounded-[32px] flex items-center justify-center animate-bounce shadow-2xl shadow-indigo-500/20">
           <Database className="w-10 h-10 text-white" />
         </div>
-        <div className="text-center text-white">同步中...</div>
+        <div className="text-center text-white font-black uppercase tracking-widest italic">中枢数据重构同步中</div>
       </div>
     );
   }
@@ -217,156 +229,112 @@ const App: React.FC = () => {
           {[
             { id: 'dashboard', label: '运营枢纽', icon: LayoutDashboard },
             { id: 'matching', label: '资源规划', icon: Zap },
-            { id: 'monitor', label: '运力监控', icon: Clock },
-            { id: 'reports', label: '绩效看板', icon: BarChart3 },
-            { id: 'drivers', label: '司机管理', icon: Users },
-            { id: 'vehicles', label: '资产管理', icon: Car },
+            { id: 'monitor', label: '负载轴监控', icon: Clock },
+            { id: 'reports', label: '效能看板', icon: BarChart3 },
+            { id: 'drivers', label: '司机主档案', icon: Users },
+            { id: 'vehicles', label: '资产主档案', icon: Car },
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center gap-3 px-5 py-4 rounded-[24px] font-black transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-900/40' : 'text-slate-500 hover:bg-slate-800 hover:text-white'}`}>
               <item.icon className="w-5 h-5" /><span className="text-sm uppercase tracking-widest">{item.label}</span>
             </button>
           ))}
-          <div className="pt-4 mt-4 border-t border-slate-800">
-            <button onClick={() => setActiveTab('deploy')} className={`w-full flex items-center gap-3 px-5 py-4 rounded-[24px] font-black transition-all ${activeTab === 'deploy' ? 'bg-orange-600 text-white shadow-2xl shadow-orange-900/40' : 'text-slate-500 hover:bg-slate-800 hover:text-white'}`}>
-              <Cloud className="w-5 h-5" /><span className="text-sm uppercase tracking-widest">系统设置</span>
-            </button>
-          </div>
         </nav>
         <div className="p-6 bg-slate-950/50 border-t border-slate-800">
            <button onClick={handleLogout} className="w-full flex items-center justify-between px-5 py-3 rounded-xl bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-all border border-transparent hover:border-rose-500/20 mb-4 group">
-              <span className="text-[10px] font-black uppercase tracking-widest">退出系统</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">退出管理</span>
               <LogOut className="w-4 h-4" />
            </button>
-           <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isCloudConnected ? 'bg-emerald-500/10' : 'bg-slate-500/10'}`}>
-                <Database className={`w-4 h-4 ${isCloudConnected ? 'text-emerald-500' : 'text-slate-500'}`} />
-              </div>
-              <div className="flex flex-col">
-                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{isCloudConnected ? 'Cloud Active' : 'Offline'}</span>
-                 <span className="text-[8px] text-slate-600 font-bold truncate">Synced: {lastSync ? new Date(lastSync).toLocaleTimeString() : '...'}</span>
-              </div>
-           </div>
+           <button onClick={() => setActiveTab('deploy')} className="w-full flex items-center gap-3 px-5 py-3 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all">
+              <Settings className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">底层重塑</span>
+           </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        <header className="bg-white border-b border-slate-100 p-6 flex justify-between items-center z-[50] shrink-0 shadow-sm">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <header className="bg-white border-b border-slate-100 p-6 flex justify-between items-center z-[50] shrink-0">
            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">
-             {activeTab === 'dashboard' && '运营枢纽'}
-             {activeTab === 'matching' && '资源规划中心'}
-             {activeTab === 'monitor' && '运力监控轴'}
-             {activeTab === 'reports' && '车队绩效看板'}
-             {activeTab === 'drivers' && '司机管理档案'}
-             {activeTab === 'vehicles' && '资产管理档案'}
-             {activeTab === 'deploy' && '系统管理'}
+             {activeTab === 'dashboard' && '运营中心'}
+             {activeTab === 'matching' && '排程规划'}
+             {activeTab === 'monitor' && '资产负载图'}
+             {activeTab === 'deploy' && 'SQL 重塑脚本'}
            </h1>
+           <div className="flex items-center gap-4">
+              <div className="text-right hidden md:block">
+                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Flat Master Tables</div>
+                 <div className="text-xs font-black text-emerald-500">OPTIMIZED</div>
+              </div>
+           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-8 bg-slate-50/50 scrollbar-hide relative">
+        <div className="flex-1 overflow-auto p-8 bg-slate-50/50 scrollbar-hide">
           {activeTab === 'dashboard' && (
             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              {/* 核心看板卡片 */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
-                  <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 text-indigo-500">
-                    <ClipboardList className="w-6 h-6" />
-                  </div>
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">今日总任务</div>
-                  <div className="text-3xl font-black text-slate-800 italic">{todayTasksCount} <span className="text-xs text-slate-300 not-italic uppercase ml-1">Orders</span></div>
-                </div>
-                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
-                  <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 text-emerald-500">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">注册司机</div>
-                  <div className="text-3xl font-black text-slate-800 italic">{drivers.length} <span className="text-xs text-slate-300 not-italic uppercase ml-1">Drivers</span></div>
-                </div>
-                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
-                  <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-500">
-                    <Car className="w-6 h-6" />
-                  </div>
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">活跃车辆资产</div>
-                  <div className="text-3xl font-black text-slate-800 italic">{vehicles.filter(v => v.status === VehicleStatus.ACTIVE).length} <span className="text-xs text-slate-300 not-italic uppercase ml-1">Active</span></div>
-                </div>
-                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
-                  <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mb-6 text-rose-500">
-                    <Activity className="w-6 h-6" />
-                  </div>
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">核心运营负载</div>
-                  <div className="text-3xl font-black text-slate-800 italic">82 <span className="text-xs text-slate-300 not-italic uppercase ml-1">%</span></div>
-                </div>
+                 {[
+                   { label: '待处理单量', val: todayTasksCount, icon: ClipboardList, color: 'indigo' },
+                   { label: '在册人力', val: drivers.length, icon: Users, color: 'emerald' },
+                   { label: '资产规模', val: vehicles.length, icon: Car, color: 'blue' },
+                   { label: '负载率', val: '84%', icon: Activity, color: 'rose' }
+                 ].map((s, i) => (
+                   <div key={i} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+                      <div className={`w-12 h-12 bg-${s.color}-50 rounded-2xl flex items-center justify-center mb-6 text-${s.color}-500`}><s.icon className="w-6 h-6" /></div>
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</div>
+                      <div className="text-3xl font-black text-slate-800 italic">{s.val}</div>
+                   </div>
+                 ))}
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
-                <div className="xl:col-span-2 flex flex-col gap-10">
-                  <AIInsight stats={stats} tasks={tasks} schedules={driverSchedules} />
-                  <div className="bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm overflow-hidden h-[600px]">
-                    <AvailabilityGrid mode="driver" drivers={drivers} schedule={driverSchedules} selectedDate={currentDate} />
+                <div className="xl:col-span-2 space-y-10">
+                  <AIInsight stats={stats} tasks={tasks} schedules={[]} />
+                  <div className="bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm overflow-hidden h-[500px]">
+                    <AvailabilityGrid mode="driver" drivers={drivers} tasks={tasks} selectedDate={currentDate} />
                   </div>
                 </div>
-                <div className="xl:col-span-1 h-full">
-                  <TaskList tasks={tasks} drivers={drivers} />
+                <div className="xl:col-span-1">
+                  <TaskList tasks={tasks} drivers={drivers} onDeleteTask={handleDeleteTask} />
                 </div>
               </div>
             </div>
           )}
-          {activeTab === 'matching' && <MatchingCenter drivers={drivers} vehicles={vehicles} driverSchedules={driverSchedules} vehicleSchedules={vehicleSchedules} onCreateTask={handleCreateTask} />}
+          {activeTab === 'matching' && <MatchingCenter drivers={drivers} vehicles={vehicles} driverSchedules={[]} vehicleSchedules={[]} onCreateTask={handleCreateTask} />}
           {activeTab === 'monitor' && (
-            <div className="flex flex-col gap-6 h-full">
-              <div className="flex gap-2 p-1.5 bg-slate-200/50 w-fit rounded-2xl mb-2">
-                <button onClick={() => setMonitorSubTab('driver')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all ${monitorSubTab === 'driver' ? 'bg-white shadow-xl text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>全域运力监控</button>
-                <button onClick={() => setMonitorSubTab('vehicle')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all ${monitorSubTab === 'vehicle' ? 'bg-white shadow-xl text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>资产状态矩阵</button>
-              </div>
-              <div className="flex-1 bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm overflow-hidden min-h-[600px]">
-                <AvailabilityGrid mode={monitorSubTab} drivers={drivers} schedule={driverSchedules} vehicles={vehicles} vehicleSchedule={vehicleSchedules} onUpdateVehicleStatus={handleUpdateVehicleStatus} selectedDate={currentDate} />
-              </div>
+            <div className="space-y-6 h-full flex flex-col">
+               <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+                  <button onClick={() => setMonitorSubTab('driver')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all ${monitorSubTab === 'driver' ? 'bg-white shadow-xl text-indigo-600' : 'text-slate-500'}`}>人力负载轴</button>
+                  <button onClick={() => setMonitorSubTab('vehicle')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all ${monitorSubTab === 'vehicle' ? 'bg-white shadow-xl text-indigo-600' : 'text-slate-500'}`}>资产占用阵</button>
+               </div>
+               <div className="flex-1 bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm overflow-hidden">
+                 <AvailabilityGrid mode={monitorSubTab} drivers={drivers} vehicles={vehicles} tasks={tasks} selectedDate={currentDate} />
+               </div>
             </div>
           )}
-          {activeTab === 'reports' && <PerformanceReport stats={stats} tasks={tasks} />}
           {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={stats} onUpdateDriver={handleUpdateDriver} />}
           {activeTab === 'vehicles' && <VehicleManagement vehicles={vehicles} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} />}
+          {activeTab === 'reports' && <PerformanceReport stats={stats} tasks={tasks} />}
           {activeTab === 'deploy' && (
-            <div className="max-w-5xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-sm">
-                  <div className="flex justify-between items-start mb-8">
+            <div className="max-w-4xl mx-auto space-y-10">
+              <div className="bg-slate-900 rounded-[40px] p-12 shadow-2xl border-[10px] border-slate-800">
+                 <div className="flex items-center justify-between mb-10">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-lg"><Database className="w-8 h-8" /></div>
-                      <div>
-                        <h2 className="text-2xl font-black text-slate-800 tracking-tight italic uppercase">D1 存储中心</h2>
-                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-1">Cloudflare Edge Storage</p>
-                      </div>
+                      <div className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-xl"><Code className="w-8 h-8" /></div>
+                      <h3 className="text-white text-2xl font-black italic uppercase tracking-tighter">全量底表重塑脚本</h3>
                     </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className={`p-6 rounded-3xl border flex items-center gap-4 ${isCloudConnected ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
-                      <CheckCircle2 className={`w-6 h-6 ${isCloudConnected ? 'text-emerald-500' : 'text-amber-500'}`} />
-                      <div>
-                        <h4 className="font-black text-slate-800 text-sm uppercase italic">D1 数据库连接: {isCloudConnected ? '已激活' : '本地模式'}</h4>
-                        <p className="text-xs text-slate-500 font-medium">所有资产、任务和排班变更将实时同步。</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-slate-900 rounded-[40px] p-10 shadow-2xl border-[8px] border-slate-800">
-                   <div className="flex items-center gap-4 mb-8">
-                      <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-indigo-400"><Code className="w-6 h-6" /></div>
-                      <div>
-                        <h3 className="text-white font-black italic uppercase tracking-tighter">常用 D1 查询指令</h3>
-                      </div>
-                   </div>
-                   <div className="space-y-6">
-                      <div className="space-y-3">
-                         <div className="flex justify-between items-center px-1">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">查询今日任务总量</span>
-                            <Copy className="w-3 h-3 text-slate-600 cursor-pointer hover:text-white" onClick={() => navigator.clipboard.writeText("SELECT count(*) FROM tasks WHERE date = date('now', 'localtime');")} />
-                         </div>
-                         <div className="bg-black/50 p-4 rounded-xl font-mono text-[11px] text-indigo-300 border border-white/5 break-all">
-                           SELECT count(*) FROM tasks WHERE date = date('now', 'localtime');
-                         </div>
-                      </div>
-                   </div>
-                </div>
+                    <button onClick={() => {navigator.clipboard.writeText(schemaSQL); alert('SQL 已复制');}} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl transition-all border border-white/5">
+                      <Copy className="w-4 h-4 text-indigo-400" />
+                      <span className="text-[10px] font-black text-white uppercase tracking-widest">复制 SQL</span>
+                    </button>
+                 </div>
+                 <div className="bg-black/50 p-8 rounded-3xl font-mono text-[11px] text-indigo-300 border border-white/5 leading-relaxed overflow-x-auto">
+                   <pre>{schemaSQL}</pre>
+                 </div>
+                 <div className="mt-8 flex items-center gap-4 p-6 bg-white/5 rounded-3xl border border-white/5">
+                    <Info className="w-6 h-6 text-amber-500 shrink-0" />
+                    <p className="text-xs text-slate-400 leading-relaxed font-bold uppercase tracking-tight">
+                      请注意：此重塑将移除所有与地理位置相关的实时冗余字段，改为全量静态档案。
+                    </p>
+                 </div>
               </div>
             </div>
           )}

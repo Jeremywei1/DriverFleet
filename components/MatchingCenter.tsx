@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Driver, Vehicle, DriverStatus, VehicleStatus, Task, DriverSchedule, VehicleSchedule } from '../types';
+// Fixed: Removed VehicleStatus which is not an exported member of types.ts
+import { Driver, Vehicle, DriverStatus, Task, DriverSchedule, VehicleSchedule } from '../types';
 import { 
   Zap, Clock, MapPin, CheckCircle2, Calendar, Sparkles, PlusCircle,
   Timer, Info, ChevronRight, MousePointer2, Car, AlertCircle
@@ -27,11 +28,9 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
   const [dragEnd, setDragEnd] = useState<number | null>(null);
   const [hoverState, setHoverState] = useState<{ id: string; idx: number } | null>(null);
 
-  // 修复后的可用司机逻辑：放宽检查条件
   const availableDrivers = useMemo(() => 
     drivers.filter(d => {
       const schedule = driverSchedules.find(s => s.driverId === d.id);
-      // 如果没有排班表（可能是由于数据同步延迟），默认该司机在此刻可用，以防无法创建订单
       if (!schedule || !schedule.slots) return true; 
       
       for(let i = startIdx; i < Math.min(48, startIdx + durationIdx); i++) {
@@ -43,11 +42,11 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
     [drivers, driverSchedules, startIdx, durationIdx]
   );
 
-  // 修复后的可用车辆逻辑
   const availableVehicles = useMemo(() => 
     vehicles.filter(v => {
       const schedule = vehicleSchedules.find(s => s.vehicleId === v.id);
-      if (v.status !== VehicleStatus.ACTIVE) return false;
+      // Fixed: Use v.isActive instead of non-existent v.status property
+      if (!v.isActive) return false;
       if (!schedule || !schedule.slots) return true;
 
       for(let i = startIdx; i < Math.min(48, startIdx + durationIdx); i++) {
@@ -84,10 +83,9 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
       locationStart: from,
       locationEnd: to,
       priority: 'MEDIUM',
-      status: 'PENDING'
+      status: 'IN_PROGRESS' // 这里改为 IN_PROGRESS，移除 PENDING
     });
 
-    // 重置表单
     setFrom(''); setTo(''); setSelectedDriverId(''); setSelectedVehicleId('');
   };
 
@@ -120,12 +118,8 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
             <Zap className="w-10 h-10 text-slate-400 fill-slate-50" />
             排程规划中心
           </h2>
-          <p className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2 mt-3">
-            <MousePointer2 className="w-4 h-4 text-slate-300" />
-            纵向深度监控模式 - 请在矩阵中通过【点击】或【拖拽】来选择资源
-          </p>
         </div>
-        <div className="bg-slate-900 border-[8px] border-slate-800 px-12 py-6 rounded-[40px] shadow-2xl relative z-10 group transition-all hover:scale-105 text-center">
+        <div className="bg-slate-900 border-[8px] border-slate-800 px-12 py-6 rounded-[40px] shadow-2xl relative z-10 group transition-all hover:scale-105 text-center text-white">
           <span className="text-[10px] font-black text-slate-500 uppercase block mb-1">选定规划时间窗</span>
           <span className="text-2xl font-black text-[#10B981] flex items-center justify-center gap-4">
             <Clock className="w-6 h-6 group-hover:rotate-12 transition-transform" />
@@ -139,21 +133,11 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
           <div className="relative z-[120] bg-white p-8 border-b-2 border-slate-50 flex justify-between items-center shadow-sm">
             <span className="font-black text-slate-800 uppercase text-xs tracking-widest italic flex items-center gap-3">
               <Sparkles className="w-5 h-5 text-slate-300" />
-              运力规划精准矩阵 (点击色块快速选择)
+              运力规划矩阵 (点击直接执行)
             </span>
           </div>
 
           <div className="flex-1 overflow-auto p-10 scrollbar-hide relative flex flex-col" onMouseUp={() => {setDragStart(null); setDragEnd(null);}}>
-            
-            <div className="absolute inset-y-0 left-34 right-10 pointer-events-none flex z-0">
-               <div className="flex-1 grid grid-cols-24 gap-0">
-                  {hours24.map(h => (
-                    <div key={h} className="border-l border-slate-100 border-dashed h-full"></div>
-                  ))}
-                  <div className="border-l border-slate-100 border-dashed h-full"></div>
-               </div>
-            </div>
-
             <div className="sticky top-0 z-[110] bg-white flex py-6 -mx-10 px-10 mb-10 border-b-2 border-slate-50">
                 <span className="w-24 flex-shrink-0 text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2 pt-2">资源轴</span>
                 <div className="flex-1 grid grid-cols-24 gap-0">
@@ -182,26 +166,14 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
                                   const idx = h * 2 + half;
                                   const slot = sched?.slots?.[idx];
                                   const isPlan = idx >= startIdx && idx < startIdx + durationIdx && isSelected;
-                                  const isHovered = hoverState?.id === d.id && hoverState?.idx === idx;
-
                                   return (
                                     <div 
                                       key={half}
                                       onMouseDown={() => {setDragStart({id: d.id, index: idx}); setDragEnd(idx); setSelectedDriverId(d.id);}}
-                                      onMouseEnter={() => {
-                                        if(dragStart?.id === d.id) setDragEnd(idx);
-                                        setHoverState({ id: d.id, idx });
-                                      }}
+                                      onMouseEnter={() => { if(dragStart?.id === d.id) setDragEnd(idx); setHoverState({ id: d.id, idx }); }}
                                       onMouseUp={() => onDragEnd(d.id, 'driver')}
-                                      className={`
-                                        relative rounded-md transition-all border
-                                        ${(!slot || slot.status === DriverStatus.FREE) ? 'bg-[#10B981] border-[#34D399] shadow-[0_4px_0_0_#064E3B]' : 'bg-[#F87171] border-[#FCA5A5] shadow-[0_4px_0_0_#B91C1C]'}
-                                        ${isPlan ? 'ring-4 ring-indigo-400 !bg-indigo-600 !border-indigo-700 !shadow-none scale-125 z-50 translate-y-[-2px]' : ''}
-                                        ${isHovered && !isPlan ? 'scale-150 -translate-y-3 z-[100] shadow-2xl ring-2 ring-white/50' : ''}
-                                      `}
-                                    >
-                                      <div className="absolute inset-x-1 top-0.5 h-0.5 bg-white/30 rounded-full"></div>
-                                    </div>
+                                      className={`relative rounded-md transition-all border ${(!slot || slot.status === DriverStatus.FREE) ? 'bg-[#10B981] border-[#34D399] shadow-[0_4px_0_0_#064E3B]' : 'bg-[#F87171] border-[#FCA5A5] shadow-[0_4px_0_0_#B91C1C]'} ${isPlan ? 'ring-4 ring-indigo-400 !bg-indigo-600 !border-indigo-700 !shadow-none scale-125 z-50 translate-y-[-2px]' : ''}`}
+                                    />
                                   );
                                 })}
                               </div>
@@ -229,26 +201,14 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
                                   const idx = h * 2 + half;
                                   const slot = sched?.slots?.[idx];
                                   const isPlan = idx >= startIdx && idx < startIdx + durationIdx && isSelected;
-                                  const isHovered = hoverState?.id === v.id && hoverState?.idx === idx;
-
                                   return (
                                     <div 
                                       key={half}
                                       onMouseDown={() => {setDragStart({id: v.id, index: idx}); setDragEnd(idx); setSelectedVehicleId(v.id);}}
-                                      onMouseEnter={() => {
-                                        if(dragStart?.id === v.id) setDragEnd(idx);
-                                        setHoverState({ id: v.id, idx });
-                                      }}
+                                      onMouseEnter={() => { if(dragStart?.id === v.id) setDragEnd(idx); setHoverState({ id: v.id, idx }); }}
                                       onMouseUp={() => onDragEnd(v.id, 'vehicle')}
-                                      className={`
-                                        relative rounded-md transition-all border
-                                        ${(!slot || slot.isAvailable) ? 'bg-[#0EA5E9] border-[#38BDF8] shadow-[0_4px_0_0_#075985]' : 'bg-[#CBD5E1] border-[#E2E8F0] shadow-[0_4px_0_0_#64748B]'}
-                                        ${isPlan ? 'ring-4 ring-indigo-400 !bg-indigo-600 !border-indigo-700 !shadow-none scale-125 z-50 translate-y-[-2px]' : ''}
-                                        ${isHovered && !isPlan ? 'scale-150 -translate-y-3 z-[100] shadow-2xl ring-2 ring-white/50' : ''}
-                                      `}
-                                    >
-                                      <div className="absolute inset-x-1 top-0.5 h-0.5 bg-white/30 rounded-full"></div>
-                                    </div>
+                                      className={`relative rounded-md transition-all border ${(!slot || slot.isAvailable) ? 'bg-[#0EA5E9] border-[#38BDF8] shadow-[0_4px_0_0_#075985]' : 'bg-[#CBD5E1] border-[#E2E8F0] shadow-[0_4px_0_0_#64748B]'} ${isPlan ? 'ring-4 ring-indigo-400 !bg-indigo-600 !border-indigo-700 !shadow-none scale-125 z-50 translate-y-[-2px]' : ''}`}
+                                    />
                                   );
                                 })}
                               </div>
@@ -270,8 +230,8 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
                 <PlusCircle className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h3 className="text-2xl font-black uppercase tracking-tight italic">创建排程调度单</h3>
-                <p className="text-[11px] text-slate-600 font-black uppercase tracking-widest mt-2">New Fleet Operation Plan</p>
+                <h3 className="text-2xl font-black uppercase tracking-tight italic">创建执行调度单</h3>
+                <p className="text-[11px] text-slate-600 font-black uppercase tracking-widest mt-2">New Execution Plan</p>
               </div>
             </div>
 
@@ -279,65 +239,49 @@ const MatchingCenter: React.FC<Props> = ({ drivers, vehicles, driverSchedules, v
               <div className="grid grid-cols-2 gap-8">
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">任务日期</label>
-                  <input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} className="w-full bg-white/5 border-2 border-white/10 p-5 rounded-[20px] font-black text-sm focus:ring-4 focus:ring-indigo-500/20 transition-all text-white" />
+                  <input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} className="w-full bg-white/5 border-2 border-white/10 p-5 rounded-[20px] font-black text-sm text-white" />
                 </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">开始时刻</label>
-                  <select value={startIdx} onChange={(e) => setStartIdx(parseInt(e.target.value))} className="w-full bg-white/5 border-2 border-white/10 p-5 rounded-[20px] font-black text-sm focus:ring-4 focus:ring-indigo-500/20 transition-all appearance-none text-white">
+                  <select value={startIdx} onChange={(e) => setStartIdx(parseInt(e.target.value))} className="w-full bg-white/5 border-2 border-white/10 p-5 rounded-[20px] font-black text-sm appearance-none text-white">
                     {Array.from({length:48}).map((_, i) => <option key={i} value={i} className="text-slate-900">{formatIdxToTime(i)}</option>)}
                   </select>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 flex justify-between items-center">
-                  任务预计历时 ({(durationIdx * 30 / 60).toFixed(1)}H)
-                  <Timer className="w-4 h-4 text-slate-600" />
-                </label>
-                <div className="px-8 py-8 bg-white/5 rounded-[28px] border-2 border-white/5 shadow-inner">
-                  <input type="range" min="1" max="24" value={durationIdx} onChange={(e) => setDurationIdx(parseInt(e.target.value))} className="w-full h-3 bg-slate-800 rounded-full appearance-none cursor-pointer accent-indigo-500 shadow-2xl" />
-                </div>
-              </div>
-
-              <div className="space-y-4">
                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">指派司机</label>
-                    <select value={selectedDriverId} onChange={(e) => setSelectedDriverId(e.target.value)} className="w-full bg-white/5 border-2 border-white/10 p-6 rounded-[24px] font-black text-sm appearance-none focus:ring-4 focus:ring-indigo-500/20 transition-all text-white">
+                    <select value={selectedDriverId} onChange={(e) => setSelectedDriverId(e.target.value)} className="w-full bg-white/5 border-2 border-white/10 p-6 rounded-[24px] font-black text-sm appearance-none text-white">
                       <option value="" className="text-slate-900">🪪 选择可用司机 ({availableDrivers.length})</option>
-                      {availableDrivers.map(d => <option key={d.id} value={d.id} className="text-slate-900">{d.name} {driverSchedules.find(s => s.driverId === d.id) ? '' : '(排班未录入-默认可用)'}</option>)}
+                      {availableDrivers.map(d => <option key={d.id} value={d.id} className="text-slate-900">{d.name}</option>)}
                     </select>
                  </div>
                  
                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">调度车辆</label>
-                    <select value={selectedVehicleId} onChange={(e) => setSelectedVehicleId(e.target.value)} className="w-full bg-white/5 border-2 border-white/10 p-6 rounded-[24px] font-black text-sm appearance-none focus:ring-4 focus:ring-indigo-500/20 transition-all text-white">
+                    <select value={selectedVehicleId} onChange={(e) => setSelectedVehicleId(e.target.value)} className="w-full bg-white/5 border-2 border-white/10 p-6 rounded-[24px] font-black text-sm appearance-none text-white">
                       <option value="" className="text-slate-900">🚚 选择可用车辆 ({availableVehicles.length})</option>
-                      {availableVehicles.map(v => <option key={v.id} value={v.id} className="text-slate-900">{v.plateNumber} ({v.type})</option>)}
+                      {availableVehicles.map(v => <option key={v.id} value={v.id} className="text-slate-900">{v.plateNumber}</option>)}
                     </select>
                  </div>
               </div>
 
               <div className="space-y-4 bg-white/5 p-8 rounded-[40px] border-2 border-white/5 shadow-inner">
-                <div className="flex gap-4 items-center bg-black/40 p-6 rounded-[20px] border-2 border-white/5 group-focus-within:border-emerald-500/50 transition-colors">
+                <div className="flex gap-4 items-center bg-black/40 p-6 rounded-[20px] border-2 border-white/5">
                   <MapPin className="text-emerald-400 w-6 h-6" />
-                  <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="设定起始位置..." className="bg-transparent text-sm font-black w-full focus:outline-none placeholder:text-slate-700" />
+                  <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="设定起始位置..." className="bg-transparent text-sm font-black w-full text-white" />
                 </div>
-                <div className="flex gap-4 items-center bg-black/40 p-6 rounded-[20px] border-2 border-white/5 group-focus-within:border-rose-500/50 transition-colors">
+                <div className="flex gap-4 items-center bg-black/40 p-6 rounded-[20px] border-2 border-white/5">
                   <MapPin className="text-rose-400 w-6 h-6" />
-                  <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="设定目标终点..." className="bg-transparent text-sm font-black w-full focus:outline-none placeholder:text-slate-700" />
+                  <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="设定目标终点..." className="bg-transparent text-sm font-black w-full text-white" />
                 </div>
               </div>
             </div>
 
-            <button disabled={!isFormValid} type="submit" className={`w-full py-7 rounded-[28px] font-black uppercase tracking-[0.4em] text-xs flex items-center justify-center gap-6 transition-all ${isFormValid ? 'bg-indigo-600 hover:bg-indigo-500 shadow-[0_20px_40px_rgba(79,70,229,0.3)] hover:scale-[1.03] active:scale-95 text-white' : 'bg-white/5 text-slate-700 opacity-50 cursor-not-allowed border-2 border-white/5'}`}>
-              <CheckCircle2 className="w-6 h-6" /> 确认指派调度单
+            <button disabled={!isFormValid} type="submit" className={`w-full py-7 rounded-[28px] font-black uppercase tracking-[0.4em] text-xs flex items-center justify-center gap-6 transition-all ${isFormValid ? 'bg-indigo-600 hover:bg-indigo-500 shadow-xl text-white' : 'bg-white/5 text-slate-700 border-2 border-white/5'}`}>
+              <CheckCircle2 className="w-6 h-6" /> 确认指派并执行
             </button>
-            
-            {!isFormValid && (
-              <p className="text-center text-[9px] text-slate-500 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
-                <AlertCircle className="w-3 h-3" /> 请在矩阵中选择资源或手动完成表单
-              </p>
-            )}
           </form>
         </div>
       </div>

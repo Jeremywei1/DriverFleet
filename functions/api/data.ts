@@ -21,28 +21,40 @@ interface Env {
   DB: D1Database;
 }
 
+const getNowTimestamp = () => {
+  const now = new Date();
+  const yyyymmdd = now.toISOString().split('T')[0].replace(/-/g, '');
+  const hhmmss = now.toTimeString().split(' ')[0];
+  return `${yyyymmdd} - ${hhmmss}`;
+};
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { searchParams } = new URL(context.request.url);
   const table = searchParams.get('table');
   const id = searchParams.get('id');
+  // 获取显式传递的日期，否则使用服务器日期
   const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
   if (!table) return new Response('Missing table param', { status: 400 });
 
   try {
     let result;
-    if (id) {
-      // 增加 date 分区查询逻辑
-      result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ? AND id = ?`).bind(date, id).first();
+    if (table === 'drivers' || table === 'vehicles') {
+      if (id) {
+        result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+      } else {
+        const { results } = await context.env.DB.prepare(`SELECT * FROM ${table}`).all();
+        result = results;
+      }
     } else {
-      // 查询当日分区数据
-      const { results } = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ?`).bind(date).all();
-      result = results;
+      if (id) {
+        result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ? AND id = ?`).bind(date, id).first();
+      } else {
+        const { results } = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ?`).bind(date).all();
+        result = results;
+      }
     }
-    
-    return new Response(JSON.stringify(result), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(JSON.stringify(result), { headers: { "Content-Type": "application/json" } });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
@@ -51,30 +63,48 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const { table, data } = await context.request.json() as { table: string, data: any };
-    const date = data.date || new Date().toISOString().split('T')[0];
+    const opTs = getNowTimestamp();
+    
+    // 统一处理：如果是数组，我们可能需要循环插入，但为了性能和简单，建议前端发送单条数据
+    // 如果是数组且有多条数据，目前仅处理第一条（兼容旧代码），建议使用 syncSingle 发送单对象
+    const items = Array.isArray(data) ? data : [data];
     
     if (table === 'drivers') {
-      await context.env.DB.prepare(`
-        INSERT OR REPLACE INTO drivers (date, id, name, avatar, rating, currentStatus, phone, joinDate, coord_x, coord_y)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(date, data.id, data.name, data.avatar, data.rating, data.currentStatus, data.phone, data.joinDate, data.coordinates.x, data.coordinates.y).run();
-    } else if (table === 'vehicles') {
-      await context.env.DB.prepare(`
-        INSERT OR REPLACE INTO vehicles (id, plateNumber, model, type, status, currentDriverId, mileage, lastService)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(data.id, data.plateNumber, data.model, data.type, data.status, data.currentDriverId, data.mileage, data.lastService).run();
+      for (const item of items) {
+        await context.env.DB.prepare(`
+          INSERT OR REPLACE INTO drivers (id, name, gender, phone, joinDate, experience_years, isActive)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(item.id, item.name, item.gender, item.phone, item.joinDate, item.experience_years, item.isActive ? 1 : 0).run();
+      }
     } else if (table === 'tasks') {
-      await context.env.DB.prepare(`
-        INSERT OR REPLACE INTO tasks (date, id, title, driverId, vehicleId, status, startTime, endTime, locationStart, locationEnd, distanceKm, priority)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(date, data.id, data.title, data.driverId, data.vehicleId, data.status, data.startTime, data.endTime, data.locationStart, data.locationEnd, data.distanceKm, data.priority).run();
-    } else {
-      await context.env.DB.prepare(`
-        INSERT OR REPLACE INTO app_data (key, value) VALUES (?, ?)
-      `).bind(table, JSON.stringify(data)).run();
+      for (const item of items) {
+        await context.env.DB.prepare(`
+          INSERT OR REPLACE INTO tasks (id, date, title, driverId, vehicleId, status, startTime, endTime, locationStart, locationEnd, distanceKm, priority, operation_timestamp)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(item.id, item.date, item.title, item.driverId, item.vehicleId, item.status, item.startTime, item.endTime, item.locationStart, item.locationEnd, item.distanceKm, item.priority, opTs).run();
+      }
+    } else if (table === 'vehicles') {
+       for (const item of items) {
+         await context.env.DB.prepare(`
+          INSERT OR REPLACE INTO vehicles (id, plateNumber, model, type, color, seats, age, mileage, lastService, currentDriverId, isActive)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(item.id, item.plateNumber, item.model, item.type, item.color, item.seats, item.age, item.mileage, item.lastService, item.currentDriverId, item.isActive ? 1 : 0).run();
+       }
     }
-
     return new Response("OK", { status: 200 });
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+  }
+}
+
+export const onRequestDelete: PagesFunction<Env> = async (context) => {
+  const { searchParams } = new URL(context.request.url);
+  const table = searchParams.get('table');
+  const id = searchParams.get('id');
+  if (!table || !id) return new Response('Invalid params', { status: 400 });
+  try {
+    await context.env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+    return new Response("DELETED", { status: 200 });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }

@@ -6,24 +6,19 @@ export enum DriverStatus {
   OFF_DUTY = 'OFF_DUTY'
 }
 
-export enum VehicleStatus {
-  ACTIVE = 'ACTIVE',
-  MAINTENANCE = 'MAINTENANCE',
-  OUT_OF_SERVICE = 'OUT_OF_SERVICE'
-}
-
 export interface Driver {
   id: string;
   name: string;
+  gender: 'Male' | 'Female';
+  phone: string;
+  joinDate: string;
+  experience_years: number;
+  isActive: boolean; // 手动控制：是否在职/可用
+  // Added properties to fix LiveMap.tsx compilation errors
+  currentStatus: DriverStatus;
+  coordinates: { x: number; y: number };
   avatar: string;
   rating: number;
-  currentStatus: DriverStatus;
-  coordinates: {
-    x: number; 
-    y: number;
-  };
-  phone?: string;
-  joinDate: string;
 }
 
 export interface Vehicle {
@@ -31,43 +26,29 @@ export interface Vehicle {
   plateNumber: string;
   model: string;
   type: 'Sedan' | 'Van' | 'Truck';
-  status: VehicleStatus;
+  color: string;
+  seats: number;
+  age: number;
   currentDriverId: string | null;
   mileage: number;
   lastService: string;
-}
-
-// Fixed: Corrected status type to DriverStatus as TimeSlot is specifically used for driver schedules
-export interface TimeSlot {
-  hour: number;
-  status: DriverStatus;
-  taskId?: string;
-}
-
-export interface DriverSchedule {
-  driverId: string;
-  date: string;
-  slots: TimeSlot[];
-}
-
-export interface VehicleSchedule {
-  vehicleId: string;
-  date: string;
-  slots: { hour: number; isAvailable: boolean; taskId?: string }[];
+  isActive: boolean; // 手动控制：是否可派单/维修中
 }
 
 export interface Task {
   id: string;
+  date: string;
   title: string;
   driverId: string | null;
   vehicleId: string | null;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   startTime: string;
   endTime: string;
   locationStart: string;
   locationEnd: string;
   distanceKm: number;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  operation_timestamp: string;
 }
 
 export interface DriverStats {
@@ -78,4 +59,22 @@ export interface DriverStats {
   totalDistance: number;
   completedOrders: number;
   efficiencyScore: number;
+}
+
+export interface DriverSchedule {
+  driverId: string;
+  date: string;
+  slots: {
+    hour: number;
+    status: DriverStatus;
+  }[];
+}
+
+export interface VehicleSchedule {
+  vehicleId: string;
+  date: string;
+  slots: {
+    hour: number;
+    isAvailable: boolean;
+  }[];
 }
