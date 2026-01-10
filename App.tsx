@@ -9,6 +9,7 @@ import AIInsight from './components/AIInsight';
 import DriverManagement from './components/DriverManagement';
 import VehicleManagement from './components/VehicleManagement';
 import MatchingCenter from './components/MatchingCenter';
+import SyncMonitor from './components/SyncMonitor';
 import { 
   LayoutDashboard, Users, BarChart3, Settings, Calendar as CalendarIcon, 
   Bell, Clock, Car, Zap, Database, Cloud, CheckCircle2, Loader2,
@@ -80,7 +81,6 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'drivers' | 'monitor' | 'vehicles' | 'matching' | 'deploy'>('dashboard');
   const [monitorSubTab, setMonitorSubTab] = useState<'driver' | 'vehicle'>('driver');
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const [isCloudConnected, setIsCloudConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -100,13 +100,10 @@ const App: React.FC = () => {
         const finalVehicles = (loadedVehicles && loadedVehicles.length > 0) ? loadedVehicles : generateVehicles(finalDrivers);
         setVehicles(finalVehicles);
 
-        // 初始化加载时，显式传入当前日期
         const loadedTasks = await storage.load<Task[]>('TASKS', `date=${currentDate}`);
         setTasks(loadedTasks || []);
-        
-        setIsCloudConnected(true);
       } catch (e) {
-        setIsCloudConnected(false);
+        console.error("Initial load failed", e);
       } finally {
         setIsLoading(false);
         setLastSync(storage.getLastSync());
@@ -115,7 +112,6 @@ const App: React.FC = () => {
     initData();
   }, [currentDate, isLoggedIn]);
 
-  // 后台静默保存逻辑只针对本地缓存，云端同步改为事件触发
   useEffect(() => {
     if (!isLoading && isLoggedIn) {
       localStorage.setItem('DRIVERS', JSON.stringify(drivers));
@@ -163,12 +159,8 @@ const App: React.FC = () => {
       operation_timestamp: ts
     };
 
-    // 1. 立即更新本地状态
     setTasks(prev => [newTask, ...prev]);
-    
-    // 2. 立即同步到云端数据库，确保单个任务被持久化
     await storage.syncSingle('tasks', newTask);
-    
     setActiveTab('dashboard');
   }, [currentDate]);
 
@@ -180,6 +172,11 @@ const App: React.FC = () => {
   const handleUpdateDriver = async (updatedDriver: Driver) => {
     setDrivers(prev => prev.map(d => d.id === updatedDriver.id ? updatedDriver : d));
     await storage.syncSingle('drivers', updatedDriver);
+  };
+
+  const handleAddDriver = async (newDriver: Driver) => {
+    setDrivers(prev => [...prev, newDriver]);
+    await storage.syncSingle('drivers', newDriver);
   };
 
   const handleUpdateVehicle = async (updatedVehicle: Vehicle) => {
@@ -251,7 +248,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="bg-white border-b border-slate-100 p-6 flex justify-between items-center z-[50] shrink-0">
            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">
              {activeTab === 'dashboard' && '运营中心'}
@@ -262,7 +259,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
            <div className="flex items-center gap-4">
               <div className="text-right hidden md:block">
                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Flat Master Tables</div>
-                 <div className="text-xs font-black text-emerald-500">OPTIMIZED</div>
+                 <div className="text-xs font-black text-emerald-500">D1 PERSISTENT</div>
               </div>
            </div>
         </header>
@@ -310,7 +307,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
                </div>
             </div>
           )}
-          {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={stats} onUpdateDriver={handleUpdateDriver} />}
+          {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={stats} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} />}
           {activeTab === 'vehicles' && <VehicleManagement vehicles={vehicles} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} />}
           {activeTab === 'reports' && <PerformanceReport stats={stats} tasks={tasks} />}
           {activeTab === 'deploy' && (
@@ -326,7 +323,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
                       <span className="text-[10px] font-black text-white uppercase tracking-widest">复制 SQL</span>
                     </button>
                  </div>
-                 <div className="bg-black/50 p-8 rounded-3xl font-mono text-[11px] text-indigo-300 border border-white/5 leading-relaxed overflow-x-auto">
+                 <div className="bg-black/50 p-8 rounded-3xl font-mono text-[11px] text-indigo-300 border border-white/5 leading-relaxed overflow-x-auto shadow-inner">
                    <pre>{schemaSQL}</pre>
                  </div>
                  <div className="mt-8 flex items-center gap-4 p-6 bg-white/5 rounded-3xl border border-white/5">
@@ -339,6 +336,8 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
             </div>
           )}
         </div>
+        
+        <SyncMonitor />
       </main>
     </div>
   );
