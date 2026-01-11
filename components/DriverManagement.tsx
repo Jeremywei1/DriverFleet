@@ -4,7 +4,7 @@ import { Driver, DriverStats, DriverStatus } from '../types';
 import { 
   Phone, Edit2, X, Star, Calendar, 
   User, UserCircle, Power, PowerOff, PlusCircle, Check,
-  Briefcase
+  Briefcase, Trash2
 } from 'lucide-react';
 
 interface Props {
@@ -12,9 +12,10 @@ interface Props {
   stats: DriverStats[];
   onUpdateDriver: (driver: Driver) => void;
   onAddDriver: (driver: Driver) => void;
+  onDeleteDriver?: (id: string) => void;
 }
 
-const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onAddDriver }) => {
+const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onAddDriver, onDeleteDriver }) => {
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newDriverData, setNewDriverData] = useState<Partial<Driver>>({
@@ -27,6 +28,14 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
 
   const toggleDriverActive = (driver: Driver) => {
     onUpdateDriver({ ...driver, isActive: !driver.isActive });
+  };
+
+  const handleDelete = (driver: Driver) => {
+    if (window.confirm(`⚠️ 安全预警\n\n确定要永久注销司机 [${driver.name}] 的档案吗？\n此操作将同时同步清理 D1 云端数据库记录且无法恢复。`)) {
+      if (onDeleteDriver) {
+        onDeleteDriver(driver.id);
+      }
+    }
   };
 
   const handleEditSave = (e: React.FormEvent) => {
@@ -83,8 +92,15 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
         {drivers.map(driver => {
           const driverStat = stats.find(s => s.driverId === driver.id);
           return (
-            <div key={driver.id} className={`bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl transition-all relative overflow-hidden ${!driver.isActive ? 'opacity-60 grayscale' : ''}`}>
+            <div key={driver.id} className={`bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-xl transition-all relative group overflow-hidden ${!driver.isActive ? 'opacity-60 grayscale' : ''}`}>
               <div className="absolute top-6 right-6 flex gap-2">
+                <button 
+                  onClick={() => handleDelete(driver)} 
+                  className="p-3 bg-rose-50 text-rose-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white shadow-sm"
+                  title="注销档案"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
                 <button 
                   onClick={() => toggleDriverActive(driver)} 
                   className={`p-3 rounded-xl transition-all ${driver.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}
@@ -174,7 +190,6 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
                   </div>
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">驾龄 (年)</label>
-                    {/* Fixed: cast e.target.value to Number to resolve type mismatch on line 177 */}
                     <input type="number" min="0" max="50" value={newDriverData.experience_years} onChange={e => setNewDriverData({...newDriverData, experience_years: Number(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
                   </div>
                 </div>

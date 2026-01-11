@@ -108,15 +108,21 @@ export const storage = {
     }
   },
 
-  deleteTask: async (id: string, date: string) => {
-    notifySync('pending', 'tasks', `正在移除: ${id.slice(-4)}`);
+  deleteResource: async (tableName: 'tasks' | 'drivers' | 'vehicles', id: string, queryParams: string = '') => {
+    notifySync('pending', tableName, `正在移除 ID: ${id.slice(-6)}`);
     try {
-      const res = await fetch(`/api/data?table=tasks&id=${id}&date=${date}`, { method: 'DELETE' });
+      const url = `/api/data?table=${tableName}&id=${id}${queryParams ? '&' + queryParams : ''}`;
+      const res = await fetch(url, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      notifySync('success', 'tasks', '删除成功');
+      notifySync('success', tableName, '云端数据已清理');
     } catch (e: any) {
-      notifySync('error', 'tasks', '删除失败', e.message);
+      notifySync('error', tableName, '删除请求失败', e.message);
     }
+  },
+
+  // Legacy helper, now calls generic deleteResource
+  deleteTask: async (id: string, date: string) => {
+    return storage.deleteResource('tasks', id, `date=${date}`);
   },
 
   load: async <T>(key: string, queryParams: string = ''): Promise<T | null> => {

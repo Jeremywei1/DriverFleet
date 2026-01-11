@@ -4,16 +4,17 @@ import { Vehicle } from '../types';
 import { 
   Car, Wrench, ShieldCheck, AlertTriangle, 
   Settings, X, Edit2, PlusCircle, Power, PowerOff, Check,
-  Palette, Users as UsersIcon, Calendar as CalendarIcon, Gauge
+  Palette, Users as UsersIcon, Calendar as CalendarIcon, Gauge, Trash2
 } from 'lucide-react';
 
 interface Props {
   vehicles: Vehicle[];
   onUpdateVehicle: (vehicle: Vehicle) => void;
   onAddVehicle: (vehicle: Vehicle) => void;
+  onDeleteVehicle?: (id: string) => void;
 }
 
-const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVehicle }) => {
+const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVehicle, onDeleteVehicle }) => {
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   
@@ -31,6 +32,14 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
 
   const toggleVehicleActive = (vehicle: Vehicle) => {
     onUpdateVehicle({ ...vehicle, isActive: !vehicle.isActive });
+  };
+
+  const handleDelete = (vehicle: Vehicle) => {
+    if (window.confirm(`⚠️ 资产清理确认\n\n确定要从档案中永久移除车辆 [${vehicle.plateNumber}] 吗？\n该资产的相关数据将从 D1 云端集群中同步注销。`)) {
+      if (onDeleteVehicle) {
+        onDeleteVehicle(vehicle.id);
+      }
+    }
   };
 
   const handleEdit = (vehicle: Vehicle) => setEditingVehicle({ ...vehicle });
@@ -91,12 +100,19 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 overflow-y-auto pb-20 pr-2 scrollbar-hide">
         {vehicles.map(vehicle => (
-          <div key={vehicle.id} className={`bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 hover:shadow-2xl transition-all relative overflow-hidden flex flex-col min-h-[380px] ${!vehicle.isActive ? 'opacity-50 grayscale' : ''}`}>
+          <div key={vehicle.id} className={`bg-white rounded-[40px] border border-slate-100 shadow-sm p-8 hover:shadow-2xl transition-all relative group overflow-hidden flex flex-col min-h-[380px] ${!vehicle.isActive ? 'opacity-50 grayscale' : ''}`}>
             <div className="flex justify-between items-start mb-8">
               <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center shadow-inner ${vehicle.isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-rose-600'}`}>
                 {vehicle.isActive ? <Car className="w-8 h-8" /> : <Wrench className="w-8 h-8" />}
               </div>
               <div className="flex gap-2">
+                <button 
+                  onClick={() => handleDelete(vehicle)} 
+                  className="p-3 bg-rose-50 text-rose-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white shadow-sm"
+                  title="注销资产"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
                 <button 
                   onClick={() => toggleVehicleActive(vehicle)}
                   className={`p-3 rounded-xl transition-all ${vehicle.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}
@@ -189,21 +205,18 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
                         <UsersIcon className="w-3 h-3" /> 核定载客 (人)
                       </label>
-                      {/* Fixed: cast e.target.value to Number to resolve type mismatch on line 192 */}
                       <input type="number" min="1" max="50" value={newVehicleData.seats} onChange={e => setNewVehicleData({...newVehicleData, seats: Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
                         <CalendarIcon className="w-3 h-3" /> 车龄 (年)
                       </label>
-                      {/* Fixed: cast e.target.value to Number to resolve type mismatch on line 198 */}
                       <input type="number" min="0" max="20" value={newVehicleData.age} onChange={e => setNewVehicleData({...newVehicleData, age: Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
                         <Gauge className="w-3 h-3" /> 当前里程 (KM)
                       </label>
-                      {/* Fixed: cast e.target.value to Number to resolve type mismatch on line 204 */}
                       <input type="number" min="0" value={newVehicleData.mileage} onChange={e => setNewVehicleData({...newVehicleData, mileage: Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
                     </div>
                   </div>

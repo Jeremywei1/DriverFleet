@@ -154,7 +154,17 @@ const App: React.FC = () => {
 
   const handleDeleteTask = useCallback(async (id: string, date: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
-    await storage.deleteTask(id, date);
+    await storage.deleteResource('tasks', id, `date=${date}`);
+  }, []);
+
+  const handleDeleteDriver = useCallback(async (id: string) => {
+    setDrivers(prev => prev.filter(d => d.id !== id));
+    await storage.deleteResource('drivers', id);
+  }, []);
+
+  const handleDeleteVehicle = useCallback(async (id: string) => {
+    setVehicles(prev => prev.filter(v => v.id !== id));
+    await storage.deleteResource('vehicles', id);
   }, []);
 
   const handleUpdateDriver = async (updatedDriver: Driver) => {
@@ -337,8 +347,23 @@ CREATE TABLE tasks (
                </div>
             </div>
           )}
-          {activeTab === 'drivers' && <DriverManagement drivers={Array.isArray(drivers) ? drivers : []} stats={stats} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} />}
-          {activeTab === 'vehicles' && <VehicleManagement vehicles={Array.isArray(vehicles) ? vehicles : []} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} />}
+          {activeTab === 'drivers' && (
+            <DriverManagement 
+              drivers={Array.isArray(drivers) ? drivers : []} 
+              stats={stats} 
+              onUpdateDriver={handleUpdateDriver} 
+              onAddDriver={handleAddDriver} 
+              onDeleteDriver={handleDeleteDriver}
+            />
+          )}
+          {activeTab === 'vehicles' && (
+            <VehicleManagement 
+              vehicles={Array.isArray(vehicles) ? vehicles : []} 
+              onUpdateVehicle={handleUpdateVehicle} 
+              onAddVehicle={handleAddVehicle} 
+              onDeleteVehicle={handleDeleteVehicle}
+            />
+          )}
           {activeTab === 'reports' && <PerformanceReport stats={stats} tasks={Array.isArray(tasks) ? tasks : []} />}
           {activeTab === 'deploy' && (
             <div className="max-w-4xl mx-auto space-y-10">
