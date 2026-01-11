@@ -179,13 +179,56 @@ const App: React.FC = () => {
 
   const schemaSQL = `
 -- ⚠️ 终极扁平化底表脚本 (D1 控制台运行)
+-- 包含 gender 字段以支持前端 UI 的性别录入同步
+
 DROP TABLE IF EXISTS drivers;
 DROP TABLE IF EXISTS vehicles;
 DROP TABLE IF EXISTS tasks;
 
-CREATE TABLE drivers (id TEXT PRIMARY KEY, name TEXT, gender TEXT, phone TEXT, joinDate TEXT, experience_years INTEGER, isActive INTEGER DEFAULT 1, currentStatus TEXT, coord_x REAL, coord_y REAL, avatar TEXT, rating REAL);
-CREATE TABLE vehicles (id TEXT PRIMARY KEY, plateNumber TEXT, model TEXT, type TEXT, color TEXT, seats INTEGER, age INTEGER, mileage INTEGER, lastService TEXT, currentDriverId TEXT, isActive INTEGER DEFAULT 1);
-CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, vehicleId TEXT, status TEXT, startTime TEXT, endTime TEXT, locationStart TEXT, locationEnd TEXT, distanceKm REAL, priority TEXT, operation_timestamp TEXT);
+CREATE TABLE drivers (
+  id TEXT PRIMARY KEY, 
+  name TEXT, 
+  gender TEXT, 
+  phone TEXT, 
+  joinDate TEXT, 
+  experience_years INTEGER, 
+  isActive INTEGER DEFAULT 1, 
+  currentStatus TEXT, 
+  coord_x REAL, 
+  coord_y REAL, 
+  avatar TEXT, 
+  rating REAL
+);
+
+CREATE TABLE vehicles (
+  id TEXT PRIMARY KEY, 
+  plateNumber TEXT, 
+  model TEXT, 
+  type TEXT, 
+  color TEXT, 
+  seats INTEGER, 
+  age INTEGER, 
+  mileage INTEGER, 
+  lastService TEXT, 
+  currentDriverId TEXT, 
+  isActive INTEGER DEFAULT 1
+);
+
+CREATE TABLE tasks (
+  id TEXT PRIMARY KEY, 
+  date TEXT, 
+  title TEXT, 
+  driverId TEXT, 
+  vehicleId TEXT, 
+  status TEXT, 
+  startTime TEXT, 
+  endTime TEXT, 
+  locationStart TEXT, 
+  locationEnd TEXT, 
+  distanceKm REAL, 
+  priority TEXT, 
+  operation_timestamp TEXT
+);
   `.trim();
 
   if (!isLoggedIn) return <LoginGate onLogin={handleLogin} />;
@@ -303,7 +346,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
                  <div className="flex items-center justify-between mb-10">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-xl"><Code className="w-8 h-8" /></div>
-                      <h3 className="text-white text-2xl font-black italic uppercase tracking-tighter">全量底表重塑脚本 (v3)</h3>
+                      <h3 className="text-white text-2xl font-black italic uppercase tracking-tighter">全量底表重塑脚本 (v3.1)</h3>
                     </div>
                     <button onClick={() => {navigator.clipboard.writeText(schemaSQL); alert('SQL 已复制到剪贴板');}} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl transition-all border border-white/5">
                       <Copy className="w-4 h-4 text-indigo-400" />
@@ -316,7 +359,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
                  <div className="mt-8 flex items-center gap-4 p-6 bg-white/5 rounded-3xl border border-white/5">
                     <Info className="w-6 h-6 text-amber-500 shrink-0" />
                     <p className="text-xs text-slate-400 leading-relaxed font-bold uppercase tracking-tight">
-                      建议：每次录入失效时，请清空 D1 对应表并运行此脚本。当前版本已支持坐标、评分等全量字段同步。
+                      建议：每次录入失效时，请清空 D1 对应表并运行此脚本。当前版本已包含 gender 字段，并支持坐标、评分等全量字段同步。
                     </p>
                  </div>
               </div>

@@ -83,6 +83,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     
     if (safeTable === 'drivers') {
       for (const item of items) {
+        // 明确将性别 (gender) 绑定到 SQL 语句中
         await context.env.DB.prepare(`
           INSERT OR REPLACE INTO drivers (
             id, name, gender, phone, joinDate, experience_years, 
@@ -91,7 +92,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         `).bind(
           wash(item.id, 'string'),
           wash(item.name, 'string', '新司机'),
-          wash(item.gender, 'string', 'Male'),
+          wash(item.gender, 'string', 'Male'), // 确保 gender 被正确写入
           wash(item.phone, 'string', ''),
           wash(item.joinDate, 'string', new Date().toISOString().split('T')[0]),
           wash(item.experience_years, 'number', 0),
