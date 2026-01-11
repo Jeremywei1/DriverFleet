@@ -32,25 +32,26 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { searchParams } = new URL(context.request.url);
   const table = searchParams.get('table');
   const id = searchParams.get('id');
-  // 获取显式传递的日期，否则使用服务器日期
   const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
   if (!table) return new Response('Missing table param', { status: 400 });
 
   try {
     let result;
-    if (table === 'drivers' || table === 'vehicles') {
+    const safeTable = table.toLowerCase();
+    
+    if (safeTable === 'drivers' || safeTable === 'vehicles') {
       if (id) {
-        result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE id = ?`).bind(id).first();
       } else {
-        const { results } = await context.env.DB.prepare(`SELECT * FROM ${table}`).all();
+        const { results } = await context.env.DB.prepare(`SELECT * FROM ${safeTable}`).all();
         result = results;
       }
     } else {
       if (id) {
-        result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ? AND id = ?`).bind(date, id).first();
+        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ? AND id = ?`).bind(date, id).first();
       } else {
-        const { results } = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ?`).bind(date).all();
+        const { results } = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ?`).bind(date).all();
         result = results;
       }
     }
@@ -64,31 +65,63 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const { table, data } = await context.request.json() as { table: string, data: any };
     const opTs = getNowTimestamp();
-    
-    // 统一处理：如果是数组，我们可能需要循环插入，但为了性能和简单，建议前端发送单条数据
-    // 如果是数组且有多条数据，目前仅处理第一条（兼容旧代码），建议使用 syncSingle 发送单对象
     const items = Array.isArray(data) ? data : [data];
+    const safeTable = table.toLowerCase();
     
-    if (table === 'drivers') {
+    if (safeTable === 'drivers') {
       for (const item of items) {
         await context.env.DB.prepare(`
           INSERT OR REPLACE INTO drivers (id, name, gender, phone, joinDate, experience_years, isActive)
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).bind(item.id, item.name, item.gender, item.phone, item.joinDate, item.experience_years, item.isActive ? 1 : 0).run();
+        `).bind(
+          item.id, 
+          item.name ?? null, 
+          item.gender ?? null, 
+          item.phone ?? null, 
+          item.joinDate ?? null, 
+          item.experience_years ?? 1, 
+          item.isActive ? 1 : 0
+        ).run();
       }
-    } else if (table === 'tasks') {
+    } else if (safeTable === 'tasks') {
       for (const item of items) {
         await context.env.DB.prepare(`
           INSERT OR REPLACE INTO tasks (id, date, title, driverId, vehicleId, status, startTime, endTime, locationStart, locationEnd, distanceKm, priority, operation_timestamp)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(item.id, item.date, item.title, item.driverId, item.vehicleId, item.status, item.startTime, item.endTime, item.locationStart, item.locationEnd, item.distanceKm, item.priority, opTs).run();
+        `).bind(
+          item.id, 
+          item.date ?? null, 
+          item.title ?? '新任务', 
+          item.driverId ?? null, 
+          item.vehicleId ?? null, 
+          item.status ?? 'IN_PROGRESS', 
+          item.startTime ?? null, 
+          item.endTime ?? null, 
+          item.locationStart ?? null, 
+          item.locationEnd ?? null, 
+          item.distanceKm ?? 0, 
+          item.priority ?? 'MEDIUM', 
+          opTs
+        ).run();
       }
-    } else if (table === 'vehicles') {
+    } else if (safeTable === 'vehicles') {
        for (const item of items) {
          await context.env.DB.prepare(`
           INSERT OR REPLACE INTO vehicles (id, plateNumber, model, type, color, seats, age, mileage, lastService, currentDriverId, isActive)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(item.id, item.plateNumber, item.model, item.type, item.color, item.seats, item.age, item.mileage, item.lastService, item.currentDriverId, item.isActive ? 1 : 0).run();
+        `).bind(
+          item.id, 
+          item.plateNumber ?? null, 
+          item.model ?? null, 
+          item.type ?? 'Sedan', 
+          item.color ?? 'White', 
+          item.seats ?? 5, 
+          item.age ?? 1, 
+          item.mileage ?? 0, 
+          item.lastService ?? null, 
+          item.currentDriverId ?? null, 
+          item.isActive ? 1 : 0
+        ).run();
        }
     }
     return new Response("OK", { status: 200 });
@@ -103,7 +136,8 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   const id = searchParams.get('id');
   if (!table || !id) return new Response('Invalid params', { status: 400 });
   try {
-    await context.env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+    const safeTable = table.toLowerCase();
+    await context.env.DB.prepare(`DELETE FROM ${safeTable} WHERE id = ?`).bind(id).run();
     return new Response("DELETED", { status: 200 });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });

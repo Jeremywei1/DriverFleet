@@ -10,7 +10,7 @@ interface Props {
   drivers: Driver[];
   stats: DriverStats[];
   onUpdateDriver: (driver: Driver) => void;
-  onAddDriver: (driver: Driver) => void; // 新增 prop 修复按钮失效
+  onAddDriver: (driver: Driver) => void;
 }
 
 const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onAddDriver }) => {
@@ -40,13 +40,16 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
     e.preventDefault();
     if (!newDriverData.name || !newDriverData.phone) return;
 
+    // 确保数值有效，防止 NaN 导致后端同步失败
+    const exp = Number(newDriverData.experience_years);
+
     const newDriver: Driver = {
       id: `d-${Date.now()}`,
       name: newDriverData.name,
       gender: newDriverData.gender as any,
       phone: newDriverData.phone,
       joinDate: new Date().toISOString().split('T')[0],
-      experience_years: newDriverData.experience_years || 1,
+      experience_years: isNaN(exp) ? 1 : exp,
       isActive: true,
       currentStatus: DriverStatus.FREE,
       coordinates: { x: 50, y: 50 },
@@ -85,7 +88,6 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
                 <button 
                   onClick={() => toggleDriverActive(driver)} 
                   className={`p-3 rounded-xl transition-all ${driver.isActive ? 'bg-emerald-50 text-emerald-600 hover:bg-rose-50 hover:text-rose-600' : 'bg-rose-50 text-rose-600 hover:bg-emerald-50 hover:text-emerald-600'}`}
-                  title={driver.isActive ? "暂停接单/设为离职" : "恢复正常接单"}
                 >
                   {driver.isActive ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
                 </button>
@@ -139,7 +141,6 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
         })}
       </div>
 
-      {/* 录入新司机 Modal */}
       {isAdding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setIsAdding(false)}></div>
@@ -167,7 +168,8 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
                   </div>
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">驾龄 (年)</label>
-                    <input type="number" min="1" max="40" value={newDriverData.experience_years} onChange={e => setNewDriverData({...newDriverData, experience_years: parseInt(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                    {/* Fixed: replaced empty string with 0 in ternary to ensure experience_years is always a number or undefined */}
+                    <input type="number" min="1" max="40" value={newDriverData.experience_years} onChange={e => setNewDriverData({...newDriverData, experience_years: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
                   </div>
                 </div>
                 <div className="pt-6">
