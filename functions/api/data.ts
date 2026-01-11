@@ -21,6 +21,24 @@ interface Env {
   DB: D1Database;
 }
 
+/**
+ * 弹性值清洗：确保值能被 SQL 接受
+ * @param val 原始值
+ * @param type 预期类型
+ * @param fallback 兜底值
+ */
+const wash = (val: any, type: 'string' | 'number' | 'boolean', fallback: any = null) => {
+  if (val === undefined || val === null || val === '') return fallback;
+  if (type === 'number') {
+    const n = Number(val);
+    return isNaN(n) ? (Number(fallback) || 0) : n;
+  }
+  if (type === 'boolean') {
+    return !!val ? 1 : 0;
+  }
+  return String(val);
+};
+
 const getNowTimestamp = () => {
   const now = new Date();
   const yyyymmdd = now.toISOString().split('T')[0].replace(/-/g, '');
@@ -42,16 +60,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     
     if (safeTable === 'drivers' || safeTable === 'vehicles') {
       if (id) {
-        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE id = ?`).bind(id).first();
+        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE id = ?`).bind(wash(id, 'string')).first();
       } else {
         const { results } = await context.env.DB.prepare(`SELECT * FROM ${safeTable}`).all();
         result = results;
       }
     } else {
       if (id) {
-        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ? AND id = ?`).bind(date, id).first();
+        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ? AND id = ?`).bind(wash(date, 'string'), wash(id, 'string')).first();
       } else {
-        const { results } = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ?`).bind(date).all();
+        const { results } = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ?`).bind(wash(date, 'string')).all();
         result = results;
       }
     }
@@ -74,13 +92,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           INSERT OR REPLACE INTO drivers (id, name, gender, phone, joinDate, experience_years, isActive)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          item.id, 
-          item.name ?? null, 
-          item.gender ?? null, 
-          item.phone ?? null, 
-          item.joinDate ?? null, 
-          item.experience_years ?? 1, 
-          item.isActive ? 1 : 0
+          wash(item.id, 'string'),
+          wash(item.name, 'string', '佚名司机'),
+          wash(item.gender, 'string', 'Male'),
+          wash(item.phone, 'string', ''),
+          wash(item.joinDate, 'string', new Date().toISOString().split('T')[0]),
+          wash(item.experience_years, 'number', 0),
+          wash(item.isActive, 'boolean', 1)
         ).run();
       }
     } else if (safeTable === 'tasks') {
@@ -89,18 +107,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           INSERT OR REPLACE INTO tasks (id, date, title, driverId, vehicleId, status, startTime, endTime, locationStart, locationEnd, distanceKm, priority, operation_timestamp)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          item.id, 
-          item.date ?? null, 
-          item.title ?? '新任务', 
-          item.driverId ?? null, 
-          item.vehicleId ?? null, 
-          item.status ?? 'IN_PROGRESS', 
-          item.startTime ?? null, 
-          item.endTime ?? null, 
-          item.locationStart ?? null, 
-          item.locationEnd ?? null, 
-          item.distanceKm ?? 0, 
-          item.priority ?? 'MEDIUM', 
+          wash(item.id, 'string'),
+          wash(item.date, 'string'),
+          wash(item.title, 'string', '新任务'),
+          wash(item.driverId, 'string'),
+          wash(item.vehicleId, 'string'),
+          wash(item.status, 'string', 'IN_PROGRESS'),
+          wash(item.startTime, 'string'),
+          wash(item.endTime, 'string'),
+          wash(item.locationStart, 'string', '未知起点'),
+          wash(item.locationEnd, 'string', '未知终点'),
+          wash(item.distanceKm, 'number', 0),
+          wash(item.priority, 'string', 'MEDIUM'),
           opTs
         ).run();
       }
@@ -110,17 +128,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           INSERT OR REPLACE INTO vehicles (id, plateNumber, model, type, color, seats, age, mileage, lastService, currentDriverId, isActive)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          item.id, 
-          item.plateNumber ?? null, 
-          item.model ?? null, 
-          item.type ?? 'Sedan', 
-          item.color ?? 'White', 
-          item.seats ?? 5, 
-          item.age ?? 1, 
-          item.mileage ?? 0, 
-          item.lastService ?? null, 
-          item.currentDriverId ?? null, 
-          item.isActive ? 1 : 0
+          wash(item.id, 'string'),
+          wash(item.plateNumber, 'string', '无牌照'),
+          wash(item.model, 'string', '未知车型'),
+          wash(item.type, 'string', 'Sedan'),
+          wash(item.color, 'string', 'White'),
+          wash(item.seats, 'number', 5),
+          wash(item.age, 'number', 0),
+          wash(item.mileage, 'number', 0),
+          wash(item.lastService, 'string', new Date().toISOString().split('T')[0]),
+          wash(item.currentDriverId, 'string'),
+          wash(item.isActive, 'boolean', 1)
         ).run();
        }
     }
@@ -137,7 +155,7 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   if (!table || !id) return new Response('Invalid params', { status: 400 });
   try {
     const safeTable = table.toLowerCase();
-    await context.env.DB.prepare(`DELETE FROM ${safeTable} WHERE id = ?`).bind(id).run();
+    await context.env.DB.prepare(`DELETE FROM ${safeTable} WHERE id = ?`).bind(wash(id, 'string')).run();
     return new Response("DELETED", { status: 200 });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });

@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { Driver, DriverStats, DriverStatus } from '../types';
 import { 
   Phone, Edit2, X, Star, Calendar, 
-  User, UserCircle, Power, PowerOff, PlusCircle, Check
+  User, UserCircle, Power, PowerOff, PlusCircle, Check,
+  Briefcase
 } from 'lucide-react';
 
 interface Props {
@@ -38,19 +39,17 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDriverData.name || !newDriverData.phone) return;
-
-    // 严格数值转换，防止 NaN 导致 D1 500 错误
-    const expValue = Number(newDriverData.experience_years);
-    const safeExp = isNaN(expValue) ? 1 : expValue;
+    
+    // 弹性处理：即使没填名字也让过，防止由于严格格式导致的同步中断
+    const finalName = newDriverData.name?.trim() || `临时编号-${Date.now().toString().slice(-4)}`;
 
     const newDriver: Driver = {
       id: `d-${Date.now()}`,
-      name: newDriverData.name,
-      gender: newDriverData.gender as any,
-      phone: newDriverData.phone,
+      name: finalName,
+      gender: newDriverData.gender as any || 'Male',
+      phone: newDriverData.phone || '暂无电话',
       joinDate: new Date().toISOString().split('T')[0],
-      experience_years: safeExp,
+      experience_years: Number(newDriverData.experience_years) || 0,
       isActive: true,
       currentStatus: DriverStatus.FREE,
       coordinates: { x: 50, y: 50 },
@@ -88,7 +87,7 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
               <div className="absolute top-6 right-6 flex gap-2">
                 <button 
                   onClick={() => toggleDriverActive(driver)} 
-                  className={`p-3 rounded-xl transition-all ${driver.isActive ? 'bg-emerald-50 text-emerald-600 hover:bg-rose-50 hover:text-rose-600' : 'bg-rose-50 text-rose-600 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                  className={`p-3 rounded-xl transition-all ${driver.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}
                 >
                   {driver.isActive ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
                 </button>
@@ -128,13 +127,13 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
               </div>
               
               <div className="space-y-4">
-                 <div className="flex items-center gap-4">
-                    <Phone className="w-4 h-4 text-slate-300" />
-                    <span className="font-black text-slate-700 text-sm">{driver.phone}</span>
+                 <div className="flex items-center gap-4 text-slate-600">
+                    <Phone className="w-4 h-4" />
+                    <span className="font-bold text-sm tracking-tighter">{driver.phone}</span>
                  </div>
-                 <div className="flex items-center gap-4">
-                    <Calendar className="w-4 h-4 text-slate-300" />
-                    <span className="font-black text-slate-700 text-sm">入职: {driver.joinDate}</span>
+                 <div className="flex items-center gap-4 text-slate-600">
+                    <Briefcase className="w-4 h-4" />
+                    <span className="font-bold text-sm">驾龄: {driver.experience_years} 年</span>
                  </div>
               </div>
             </div>
@@ -144,38 +143,46 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
 
       {isAdding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setIsAdding(false)}></div>
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setIsAdding(false)}></div>
           <div className="relative bg-white rounded-[56px] shadow-2xl w-full max-w-xl p-12 animate-in zoom-in-95 duration-300">
              <div className="flex justify-between items-center mb-10">
-                <h3 className="text-2xl font-black text-slate-800 italic uppercase">录入新驾驶员</h3>
-                <button onClick={() => setIsAdding(false)} className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all"><X className="w-5 h-5 text-slate-400" /></button>
-             </div>
-             <form onSubmit={handleAddSubmit} className="space-y-6">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">真实姓名</label>
-                  <input required type="text" value={newDriverData.name} onChange={e => setNewDriverData({...newDriverData, name: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" placeholder="输入司机姓名" />
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <PlusCircle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">录入新驾驶员</h3>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">联系电话</label>
-                  <input required type="tel" value={newDriverData.phone} onChange={e => setNewDriverData({...newDriverData, phone: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" placeholder="138 **** ****" />
+                <button onClick={() => setIsAdding(false)} className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all text-slate-400"><X className="w-5 h-5" /></button>
+             </div>
+             
+             <form onSubmit={handleAddSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">真实姓名</label>
+                  <input type="text" value={newDriverData.name} onChange={e => setNewDriverData({...newDriverData, name: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" placeholder="输入司机姓名 (选填)" />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">联系电话</label>
+                  <input type="tel" value={newDriverData.phone} onChange={e => setNewDriverData({...newDriverData, phone: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" placeholder="138 **** **** (选填)" />
                 </div>
                 <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">性别</label>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">性别</label>
                     <select value={newDriverData.gender} onChange={e => setNewDriverData({...newDriverData, gender: e.target.value as any})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none appearance-none">
                       <option value="Male">男性</option>
                       <option value="Female">女性</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">驾龄 (年)</label>
-                    <input type="number" min="1" max="40" value={newDriverData.experience_years} onChange={e => setNewDriverData({...newDriverData, experience_years: e.target.value === '' ? 0 : Number(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">驾龄 (年)</label>
+                    {/* Fixed: cast e.target.value to Number to resolve type mismatch on line 177 */}
+                    <input type="number" min="0" max="50" value={newDriverData.experience_years} onChange={e => setNewDriverData({...newDriverData, experience_years: Number(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
                   </div>
                 </div>
-                <div className="pt-6">
-                  <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-6 rounded-[24px] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 shadow-2xl shadow-indigo-900/40 transition-all active:scale-95">
+                <div className="pt-8">
+                  <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-6 rounded-[32px] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 shadow-2xl shadow-indigo-900/40 transition-all active:scale-95">
                     <Check className="w-5 h-5" /> 确认录入系统并同步云端
                   </button>
+                  <p className="text-center text-[9px] text-slate-400 font-black uppercase tracking-widest mt-4">已启用弹性同步机制：非法或空缺数值将被自动纠偏</p>
                 </div>
              </form>
           </div>
