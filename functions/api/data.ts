@@ -21,55 +21,50 @@ interface Env {
   DB: D1Database;
 }
 
-/**
- * 弹性值清洗：确保值能被 SQL 接受
- * @param val 原始值
- * @param type 预期类型
- * @param fallback 兜底值
- */
 const wash = (val: any, type: 'string' | 'number' | 'boolean', fallback: any = null) => {
-  if (val === undefined || val === null || val === '') return fallback;
+  if (val === undefined || val === null) {
+    if (type === 'number') return 0;
+    if (type === 'boolean') return 1;
+    return fallback;
+  }
   if (type === 'number') {
-    const n = Number(val);
-    return isNaN(n) ? (Number(fallback) || 0) : n;
+    const n = parseFloat(val);
+    return isNaN(n) ? (fallback !== null ? fallback : 0) : n;
   }
   if (type === 'boolean') {
-    return !!val ? 1 : 0;
+    return (val === true || val === 1 || val === 'true') ? 1 : 0;
   }
-  return String(val);
+  const s = String(val).trim();
+  return s === '' ? fallback : s;
 };
 
 const getNowTimestamp = () => {
   const now = new Date();
-  const yyyymmdd = now.toISOString().split('T')[0].replace(/-/g, '');
-  const hhmmss = now.toTimeString().split(' ')[0];
-  return `${yyyymmdd} - ${hhmmss}`;
+  return `${now.toISOString().split('T')[0]} - ${now.toTimeString().split(' ')[0]}`;
 };
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { searchParams } = new URL(context.request.url);
-  const table = searchParams.get('table');
+  const table = searchParams.get('table')?.toLowerCase();
   const id = searchParams.get('id');
   const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
-  if (!table) return new Response('Missing table param', { status: 400 });
+  if (!table) return new Response('Missing table', { status: 400 });
 
   try {
     let result;
-    const safeTable = table.toLowerCase();
-    
-    if (safeTable === 'drivers' || safeTable === 'vehicles') {
+    if (table === 'drivers' || table === 'vehicles') {
       if (id) {
-        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE id = ?`).bind(wash(id, 'string')).first();
+        result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(wash(id, 'string')).first();
       } else {
-        const { results } = await context.env.DB.prepare(`SELECT * FROM ${safeTable}`).all();
+        const { results } = await context.env.DB.prepare(`SELECT * FROM ${table}`).all();
         result = results;
       }
     } else {
       if (id) {
-        result = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ? AND id = ?`).bind(wash(date, 'string'), wash(id, 'string')).first();
+        result = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ? AND id = ?`).bind(wash(date, 'string'), wash(id, 'string')).first();
       } else {
-        const { results } = await context.env.DB.prepare(`SELECT * FROM ${safeTable} WHERE date = ?`).bind(wash(date, 'string')).all();
+        const { results } = await context.env.DB.prepare(`SELECT * FROM ${table} WHERE date = ?`).bind(wash(date, 'string')).all();
         result = results;
       }
     }
@@ -89,23 +84,52 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     if (safeTable === 'drivers') {
       for (const item of items) {
         await context.env.DB.prepare(`
-          INSERT OR REPLACE INTO drivers (id, name, gender, phone, joinDate, experience_years, isActive)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT OR REPLACE INTO drivers (
+            id, name, gender, phone, joinDate, experience_years, 
+            isActive, currentStatus, coord_x, coord_y, avatar, rating
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           wash(item.id, 'string'),
-          wash(item.name, 'string', '佚名司机'),
+          wash(item.name, 'string', '新司机'),
           wash(item.gender, 'string', 'Male'),
           wash(item.phone, 'string', ''),
           wash(item.joinDate, 'string', new Date().toISOString().split('T')[0]),
           wash(item.experience_years, 'number', 0),
+          wash(item.isActive, 'boolean', 1),
+          wash(item.currentStatus, 'string', 'FREE'),
+          wash(item.coord_x, 'number', 0),
+          wash(item.coord_y, 'number', 0),
+          wash(item.avatar, 'string', ''),
+          wash(item.rating, 'number', 5.0)
+        ).run();
+      }
+    } else if (safeTable === 'vehicles') {
+      for (const item of items) {
+        await context.env.DB.prepare(`
+          INSERT OR REPLACE INTO vehicles (
+            id, plateNumber, model, type, color, seats, age, mileage, lastService, currentDriverId, isActive
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          wash(item.id, 'string'),
+          wash(item.plateNumber, 'string', '未录入车牌'),
+          wash(item.model, 'string', '通用车型'),
+          wash(item.type, 'string', 'Sedan'),
+          wash(item.color, 'string', '白色'),
+          wash(item.seats, 'number', 5),
+          wash(item.age, 'number', 0),
+          wash(item.mileage, 'number', 0),
+          wash(item.lastService, 'string', new Date().toISOString().split('T')[0]),
+          wash(item.currentDriverId, 'string'),
           wash(item.isActive, 'boolean', 1)
         ).run();
       }
     } else if (safeTable === 'tasks') {
       for (const item of items) {
         await context.env.DB.prepare(`
-          INSERT OR REPLACE INTO tasks (id, date, title, driverId, vehicleId, status, startTime, endTime, locationStart, locationEnd, distanceKm, priority, operation_timestamp)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT OR REPLACE INTO tasks (
+            id, date, title, driverId, vehicleId, status, startTime, endTime, 
+            locationStart, locationEnd, distanceKm, priority, operation_timestamp
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           wash(item.id, 'string'),
           wash(item.date, 'string'),
@@ -122,40 +146,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           opTs
         ).run();
       }
-    } else if (safeTable === 'vehicles') {
-       for (const item of items) {
-         await context.env.DB.prepare(`
-          INSERT OR REPLACE INTO vehicles (id, plateNumber, model, type, color, seats, age, mileage, lastService, currentDriverId, isActive)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-          wash(item.id, 'string'),
-          wash(item.plateNumber, 'string', '无牌照'),
-          wash(item.model, 'string', '未知车型'),
-          wash(item.type, 'string', 'Sedan'),
-          wash(item.color, 'string', 'White'),
-          wash(item.seats, 'number', 5),
-          wash(item.age, 'number', 0),
-          wash(item.mileage, 'number', 0),
-          wash(item.lastService, 'string', new Date().toISOString().split('T')[0]),
-          wash(item.currentDriverId, 'string'),
-          wash(item.isActive, 'boolean', 1)
-        ).run();
-       }
     }
     return new Response("OK", { status: 200 });
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: `D1 Error: ${e.message}` }), { 
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 }
 
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
   const { searchParams } = new URL(context.request.url);
-  const table = searchParams.get('table');
+  const table = searchParams.get('table')?.toLowerCase();
   const id = searchParams.get('id');
   if (!table || !id) return new Response('Invalid params', { status: 400 });
   try {
-    const safeTable = table.toLowerCase();
-    await context.env.DB.prepare(`DELETE FROM ${safeTable} WHERE id = ?`).bind(wash(id, 'string')).run();
+    await context.env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(wash(id, 'string')).run();
     return new Response("DELETED", { status: 200 });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });

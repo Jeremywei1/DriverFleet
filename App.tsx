@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { generateDrivers, generateSchedule, generateTasks, generateStats, generateVehicles, generateVehicleSchedule } from './services/mockData';
+import { generateDrivers, generateTasks, generateStats, generateVehicles } from './services/mockData';
 import { storage } from './services/storageService';
 import AvailabilityGrid from './components/AvailabilityGrid';
 import TaskList from './components/TaskList';
@@ -11,11 +11,11 @@ import VehicleManagement from './components/VehicleManagement';
 import MatchingCenter from './components/MatchingCenter';
 import SyncMonitor from './components/SyncMonitor';
 import { 
-  LayoutDashboard, Users, BarChart3, Settings, Calendar as CalendarIcon, 
-  Bell, Clock, Car, Zap, Database, Cloud, CheckCircle2, Loader2,
-  ClipboardList, Activity, Code, Copy, Lock, KeyRound, LogOut, ArrowRight, Info
+  LayoutDashboard, Users, BarChart3, Settings, Clock, Car, Zap, Database, 
+  ClipboardList, Activity, Code, Copy, Lock, KeyRound, 
+  LogOut, ArrowRight, Info, Loader2
 } from 'lucide-react';
-import { DriverStatus, Driver, Vehicle, Task, DriverSchedule, VehicleSchedule } from './types';
+import { Driver, Vehicle, Task } from './types';
 
 const LoginGate: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
@@ -80,7 +80,6 @@ const App: React.FC = () => {
   const [currentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'drivers' | 'monitor' | 'vehicles' | 'matching' | 'deploy'>('dashboard');
   const [monitorSubTab, setMonitorSubTab] = useState<'driver' | 'vehicle'>('driver');
-  const [lastSync, setLastSync] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -93,38 +92,29 @@ const App: React.FC = () => {
       setIsLoading(true);
       try {
         const loadedDrivers = await storage.load<Driver[]>('DRIVERS');
-        const finalDrivers = (loadedDrivers && loadedDrivers.length > 0) ? loadedDrivers : generateDrivers();
+        const finalDrivers = Array.isArray(loadedDrivers) && loadedDrivers.length > 0 ? loadedDrivers : generateDrivers();
         setDrivers(finalDrivers);
 
         const loadedVehicles = await storage.load<Vehicle[]>('VEHICLES');
-        const finalVehicles = (loadedVehicles && loadedVehicles.length > 0) ? loadedVehicles : generateVehicles(finalDrivers);
+        const finalVehicles = Array.isArray(loadedVehicles) && loadedVehicles.length > 0 ? loadedVehicles : generateVehicles(finalDrivers);
         setVehicles(finalVehicles);
 
         const loadedTasks = await storage.load<Task[]>('TASKS', `date=${currentDate}`);
-        setTasks(loadedTasks || []);
+        setTasks(Array.isArray(loadedTasks) ? loadedTasks : []);
       } catch (e) {
         console.error("Initial load failed", e);
+        setDrivers(generateDrivers());
       } finally {
         setIsLoading(false);
-        setLastSync(storage.getLastSync());
       }
     };
     initData();
   }, [currentDate, isLoggedIn]);
 
-  useEffect(() => {
-    if (!isLoading && isLoggedIn) {
-      localStorage.setItem('DRIVERS', JSON.stringify(drivers));
-      localStorage.setItem('VEHICLES', JSON.stringify(vehicles));
-      localStorage.setItem('TASKS', JSON.stringify(tasks));
-      setLastSync(new Date().toISOString());
-    }
-  }, [drivers, vehicles, tasks, isLoading, isLoggedIn]);
-
-  const stats = useMemo(() => generateStats(drivers), [drivers]);
+  const stats = useMemo(() => generateStats(Array.isArray(drivers) ? drivers : []), [drivers]);
 
   const todayTasksCount = useMemo(() => {
-    return tasks.filter(t => t.startTime.startsWith(currentDate)).length;
+    return (Array.isArray(tasks) ? tasks : []).filter(t => t.startTime && t.startTime.startsWith(currentDate)).length;
   }, [tasks, currentDate]);
 
   const handleLogin = () => {
@@ -141,8 +131,7 @@ const App: React.FC = () => {
 
   const handleCreateTask = useCallback(async (partialTask: Partial<Task>) => {
     const now = new Date();
-    const ts = `${now.toISOString().split('T')[0].replace(/-/g, '')} - ${now.toTimeString().split(' ')[0]}`;
-
+    const ts = `${now.toISOString().split('T')[0]} - ${now.toTimeString().split(' ')[0]}`;
     const newTask: Task = {
       id: `task-${Date.now()}`,
       title: partialTask.title || '新任务',
@@ -158,7 +147,6 @@ const App: React.FC = () => {
       date: partialTask.date || currentDate,
       operation_timestamp: ts
     };
-
     setTasks(prev => [newTask, ...prev]);
     await storage.syncSingle('tasks', newTask);
     setActiveTab('dashboard');
@@ -190,12 +178,12 @@ const App: React.FC = () => {
   };
 
   const schemaSQL = `
--- ⚠️ 全量底表重构脚本 (D1 控制台运行)
+-- ⚠️ 终极扁平化底表脚本 (D1 控制台运行)
 DROP TABLE IF EXISTS drivers;
 DROP TABLE IF EXISTS vehicles;
 DROP TABLE IF EXISTS tasks;
 
-CREATE TABLE drivers (id TEXT PRIMARY KEY, name TEXT, gender TEXT, phone TEXT, joinDate TEXT, experience_years INTEGER, isActive INTEGER DEFAULT 1);
+CREATE TABLE drivers (id TEXT PRIMARY KEY, name TEXT, gender TEXT, phone TEXT, joinDate TEXT, experience_years INTEGER, isActive INTEGER DEFAULT 1, currentStatus TEXT, coord_x REAL, coord_y REAL, avatar TEXT, rating REAL);
 CREATE TABLE vehicles (id TEXT PRIMARY KEY, plateNumber TEXT, model TEXT, type TEXT, color TEXT, seats INTEGER, age INTEGER, mileage INTEGER, lastService TEXT, currentDriverId TEXT, isActive INTEGER DEFAULT 1);
 CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, vehicleId TEXT, status TEXT, startTime TEXT, endTime TEXT, locationStart TEXT, locationEnd TEXT, distanceKm REAL, priority TEXT, operation_timestamp TEXT);
   `.trim();
@@ -208,7 +196,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
         <div className="w-20 h-20 bg-indigo-600 rounded-[32px] flex items-center justify-center animate-bounce shadow-2xl shadow-indigo-500/20">
           <Database className="w-10 h-10 text-white" />
         </div>
-        <div className="text-center text-white font-black uppercase tracking-widest italic">中枢数据重构同步中</div>
+        <div className="text-center text-white font-black uppercase tracking-widest italic">云端数据架构自检中...</div>
       </div>
     );
   }
@@ -218,7 +206,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
       <aside className="w-full md:w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col h-screen sticky top-0 z-[100] border-r border-slate-800 shadow-2xl">
         <div className="p-8 border-b border-slate-800/50">
           <div className="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase italic">
-             <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center text-white font-mono not-italic shadow-xl">DF</div>
+             <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-white font-mono not-italic shadow-xl">DF</div>
              FLEET PRO
           </div>
         </div>
@@ -243,7 +231,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
            </button>
            <button onClick={() => setActiveTab('deploy')} className="w-full flex items-center gap-3 px-5 py-3 rounded-xl bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all">
               <Settings className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">底层重塑</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">底表格式</span>
            </button>
         </div>
       </aside>
@@ -254,12 +242,12 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
              {activeTab === 'dashboard' && '运营中心'}
              {activeTab === 'matching' && '排程规划'}
              {activeTab === 'monitor' && '资产负载图'}
-             {activeTab === 'deploy' && 'SQL 重塑脚本'}
+             {activeTab === 'deploy' && 'D1 数据结构'}
            </h1>
            <div className="flex items-center gap-4">
               <div className="text-right hidden md:block">
-                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Flat Master Tables</div>
-                 <div className="text-xs font-black text-emerald-500">D1 PERSISTENT</div>
+                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fleet Master D1</div>
+                 <div className="text-xs font-black text-emerald-500">CLOUD SYNCED</div>
               </div>
            </div>
         </header>
@@ -270,32 +258,31 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                  {[
                    { label: '当日任务量', val: todayTasksCount, icon: ClipboardList, color: 'indigo' },
-                   { label: '在册人力', val: drivers.length, icon: Users, color: 'emerald' },
-                   { label: '资产规模', val: vehicles.length, icon: Car, color: 'blue' },
+                   { label: '在册人力', val: Array.isArray(drivers) ? drivers.length : 0, icon: Users, color: 'emerald' },
+                   { label: '资产规模', val: Array.isArray(vehicles) ? vehicles.length : 0, icon: Car, color: 'blue' },
                    { label: '负载率', val: '84%', icon: Activity, color: 'rose' }
                  ].map((s, i) => (
                    <div key={i} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                      <div className={`w-12 h-12 bg-${s.color}-50 rounded-2xl flex items-center justify-center mb-6 text-${s.color}-500`}><s.icon className="w-6 h-6" /></div>
+                      <div className={`w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 text-indigo-500`}><s.icon className="w-6 h-6" /></div>
                       <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</div>
                       <div className="text-3xl font-black text-slate-800 italic">{s.val}</div>
                    </div>
                  ))}
               </div>
-
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
                 <div className="xl:col-span-2 space-y-10">
-                  <AIInsight stats={stats} tasks={tasks} schedules={[]} />
+                  <AIInsight stats={stats} tasks={Array.isArray(tasks) ? tasks : []} schedules={[]} />
                   <div className="bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm overflow-hidden h-[500px]">
-                    <AvailabilityGrid mode="driver" drivers={drivers} tasks={tasks} selectedDate={currentDate} />
+                    <AvailabilityGrid mode="driver" drivers={Array.isArray(drivers) ? drivers : []} tasks={Array.isArray(tasks) ? tasks : []} selectedDate={currentDate} />
                   </div>
                 </div>
                 <div className="xl:col-span-1">
-                  <TaskList tasks={tasks} drivers={drivers} onDeleteTask={handleDeleteTask} />
+                  <TaskList tasks={Array.isArray(tasks) ? tasks : []} drivers={Array.isArray(drivers) ? drivers : []} onDeleteTask={handleDeleteTask} />
                 </div>
               </div>
             </div>
           )}
-          {activeTab === 'matching' && <MatchingCenter drivers={drivers} vehicles={vehicles} driverSchedules={[]} vehicleSchedules={[]} onCreateTask={handleCreateTask} />}
+          {activeTab === 'matching' && <MatchingCenter drivers={Array.isArray(drivers) ? drivers : []} vehicles={Array.isArray(vehicles) ? vehicles : []} driverSchedules={[]} vehicleSchedules={[]} onCreateTask={handleCreateTask} />}
           {activeTab === 'monitor' && (
             <div className="space-y-6 h-full flex flex-col">
                <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
@@ -303,22 +290,22 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
                   <button onClick={() => setMonitorSubTab('vehicle')} className={`px-8 py-2.5 rounded-xl text-xs font-black transition-all ${monitorSubTab === 'vehicle' ? 'bg-white shadow-xl text-indigo-600' : 'text-slate-500'}`}>资产占用阵</button>
                </div>
                <div className="flex-1 bg-white rounded-[48px] p-2 border border-slate-100 shadow-sm overflow-hidden">
-                 <AvailabilityGrid mode={monitorSubTab} drivers={drivers} vehicles={vehicles} tasks={tasks} selectedDate={currentDate} />
+                 <AvailabilityGrid mode={monitorSubTab} drivers={Array.isArray(drivers) ? drivers : []} vehicles={Array.isArray(vehicles) ? vehicles : []} tasks={Array.isArray(tasks) ? tasks : []} selectedDate={currentDate} />
                </div>
             </div>
           )}
-          {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={stats} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} />}
-          {activeTab === 'vehicles' && <VehicleManagement vehicles={vehicles} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} />}
-          {activeTab === 'reports' && <PerformanceReport stats={stats} tasks={tasks} />}
+          {activeTab === 'drivers' && <DriverManagement drivers={Array.isArray(drivers) ? drivers : []} stats={stats} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} />}
+          {activeTab === 'vehicles' && <VehicleManagement vehicles={Array.isArray(vehicles) ? vehicles : []} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} />}
+          {activeTab === 'reports' && <PerformanceReport stats={stats} tasks={Array.isArray(tasks) ? tasks : []} />}
           {activeTab === 'deploy' && (
             <div className="max-w-4xl mx-auto space-y-10">
               <div className="bg-slate-900 rounded-[40px] p-12 shadow-2xl border-[10px] border-slate-800">
                  <div className="flex items-center justify-between mb-10">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-xl"><Code className="w-8 h-8" /></div>
-                      <h3 className="text-white text-2xl font-black italic uppercase tracking-tighter">全量底表重塑脚本</h3>
+                      <h3 className="text-white text-2xl font-black italic uppercase tracking-tighter">全量底表重塑脚本 (v3)</h3>
                     </div>
-                    <button onClick={() => {navigator.clipboard.writeText(schemaSQL); alert('SQL 已复制');}} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl transition-all border border-white/5">
+                    <button onClick={() => {navigator.clipboard.writeText(schemaSQL); alert('SQL 已复制到剪贴板');}} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl transition-all border border-white/5">
                       <Copy className="w-4 h-4 text-indigo-400" />
                       <span className="text-[10px] font-black text-white uppercase tracking-widest">复制 SQL</span>
                     </button>
@@ -329,14 +316,13 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
                  <div className="mt-8 flex items-center gap-4 p-6 bg-white/5 rounded-3xl border border-white/5">
                     <Info className="w-6 h-6 text-amber-500 shrink-0" />
                     <p className="text-xs text-slate-400 leading-relaxed font-bold uppercase tracking-tight">
-                      请注意：此重塑将移除所有与地理位置相关的实时冗余字段，改为全量静态档案。
+                      建议：每次录入失效时，请清空 D1 对应表并运行此脚本。当前版本已支持坐标、评分等全量字段同步。
                     </p>
                  </div>
               </div>
             </div>
           )}
         </div>
-        
         <SyncMonitor />
       </main>
     </div>
