@@ -40,8 +40,9 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
     e.preventDefault();
     if (!newDriverData.name || !newDriverData.phone) return;
 
-    // 确保数值有效，防止 NaN 导致后端同步失败
-    const exp = Number(newDriverData.experience_years);
+    // 严格数值转换，防止 NaN 导致 D1 500 错误
+    const expValue = Number(newDriverData.experience_years);
+    const safeExp = isNaN(expValue) ? 1 : expValue;
 
     const newDriver: Driver = {
       id: `d-${Date.now()}`,
@@ -49,7 +50,7 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
       gender: newDriverData.gender as any,
       phone: newDriverData.phone,
       joinDate: new Date().toISOString().split('T')[0],
-      experience_years: isNaN(exp) ? 1 : exp,
+      experience_years: safeExp,
       isActive: true,
       currentStatus: DriverStatus.FREE,
       coordinates: { x: 50, y: 50 },
@@ -168,39 +169,13 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
                   </div>
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">驾龄 (年)</label>
-                    {/* Fixed: replaced empty string with 0 in ternary to ensure experience_years is always a number or undefined */}
-                    <input type="number" min="1" max="40" value={newDriverData.experience_years} onChange={e => setNewDriverData({...newDriverData, experience_years: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                    <input type="number" min="1" max="40" value={newDriverData.experience_years} onChange={e => setNewDriverData({...newDriverData, experience_years: e.target.value === '' ? 0 : Number(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
                   </div>
                 </div>
                 <div className="pt-6">
                   <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-6 rounded-[24px] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 shadow-2xl shadow-indigo-900/40 transition-all active:scale-95">
                     <Check className="w-5 h-5" /> 确认录入系统并同步云端
                   </button>
-                </div>
-             </form>
-          </div>
-        </div>
-      )}
-
-      {editingDriver && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setEditingDriver(null)}></div>
-          <div className="relative bg-white rounded-[56px] shadow-2xl w-full max-w-xl p-12 animate-in zoom-in-95 duration-300">
-             <div className="flex justify-between items-center mb-10">
-                <h3 className="text-2xl font-black text-slate-800 italic uppercase">修改资料</h3>
-                <button onClick={() => setEditingDriver(null)}><X className="w-6 h-6 text-slate-300" /></button>
-             </div>
-             <form onSubmit={handleEditSave} className="space-y-6">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">姓名</label>
-                  <input type="text" value={editingDriver.name} onChange={e => setEditingDriver({...editingDriver, name: e.target.value})} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">电话</label>
-                  <input type="text" value={editingDriver.phone} onChange={e => setEditingDriver({...editingDriver, phone: e.target.value})} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" />
-                </div>
-                <div className="pt-6">
-                  <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest">保存更新</button>
                 </div>
              </form>
           </div>

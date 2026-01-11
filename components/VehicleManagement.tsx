@@ -17,9 +17,15 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
   const [isAdding, setIsAdding] = useState(false);
   
   const [newVehicleData, setNewVehicleData] = useState<Partial<Vehicle>>({
-    plateNumber: '', model: '', type: 'Sedan', mileage: 0,
+    plateNumber: '', 
+    model: '', 
+    type: 'Sedan', 
+    mileage: 0,
     lastService: new Date().toISOString().split('T')[0],
-    color: 'White', seats: 5, age: 1, isActive: true
+    color: 'White', 
+    seats: 5, 
+    age: 1, 
+    isActive: true
   });
 
   const toggleVehicleActive = (vehicle: Vehicle) => {
@@ -38,26 +44,27 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVehicleData.plateNumber) return;
+    if (!newVehicleData.plateNumber || !newVehicleData.model) return;
 
-    // 清洗数值字段防止 NaN
-    const mileage = Number(newVehicleData.mileage);
-    const seats = Number(newVehicleData.seats);
-    const age = Number(newVehicleData.age);
+    // 严格清洗数值字段，防止 NaN 导致 D1 500 错误
+    const safeMileage = isNaN(Number(newVehicleData.mileage)) ? 0 : Number(newVehicleData.mileage);
+    const safeSeats = isNaN(Number(newVehicleData.seats)) ? 5 : Number(newVehicleData.seats);
+    const safeAge = isNaN(Number(newVehicleData.age)) ? 1 : Number(newVehicleData.age);
 
     const vehicle: Vehicle = {
       id: `v-${Date.now()}`,
       plateNumber: newVehicleData.plateNumber,
-      model: newVehicleData.model || '通用型',
+      model: newVehicleData.model,
       type: (newVehicleData.type as any) || 'Sedan',
       currentDriverId: null,
-      mileage: isNaN(mileage) ? 0 : mileage,
+      mileage: safeMileage,
       lastService: newVehicleData.lastService || new Date().toISOString().split('T')[0],
       color: newVehicleData.color || 'White',
-      seats: isNaN(seats) ? 5 : seats,
-      age: isNaN(age) ? 1 : age,
+      seats: safeSeats,
+      age: safeAge,
       isActive: true
     };
+
     onAddVehicle(vehicle);
     setIsAdding(false);
     setNewVehicleData({
@@ -117,8 +124,8 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
 
             <div className="space-y-4 p-6 bg-slate-50 rounded-[32px] mt-8 border border-white">
               <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <span>资产类别</span>
-                <span className="text-slate-800">{vehicle.type}</span>
+                <span>资产类别 / 颜色</span>
+                <span className="text-slate-800">{vehicle.type} / {vehicle.color}</span>
               </div>
               <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
                 <span>运行里程</span>
@@ -132,15 +139,15 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
       {isAdding && (
          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setIsAdding(false)}></div>
-            <div className="relative bg-white rounded-[56px] shadow-2xl w-full max-w-xl p-12 animate-in zoom-in-95 duration-300">
-               <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-2xl font-black italic uppercase">资产入库</h3>
+            <div className="relative bg-white rounded-[56px] shadow-2xl w-full max-w-2xl p-12 animate-in zoom-in-95 duration-300">
+               <div className="flex justify-between items-center mb-10">
+                  <h3 className="text-2xl font-black italic uppercase">资产录入入库</h3>
                   <button onClick={() => setIsAdding(false)} className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all"><X className="w-5 h-5 text-slate-400" /></button>
                </div>
-               <form onSubmit={handleAddSubmit} className="space-y-5">
-                  <div className="grid grid-cols-2 gap-4">
+               <form onSubmit={handleAddSubmit} className="space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">车牌号</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">车牌号码</label>
                       <input required type="text" placeholder="京A·88888" value={newVehicleData.plateNumber} onChange={e => setNewVehicleData({...newVehicleData, plateNumber: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 rounded-2xl font-bold transition-all outline-none" />
                     </div>
                     <div>
@@ -148,24 +155,40 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
                       <input required type="text" placeholder="丰田 凯美瑞" value={newVehicleData.model} onChange={e => setNewVehicleData({...newVehicleData, model: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 rounded-2xl font-bold transition-all outline-none" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">资产类型</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">车辆类型</label>
                       <select value={newVehicleData.type} onChange={e => setNewVehicleData({...newVehicleData, type: e.target.value as any})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none appearance-none">
-                        <option value="Sedan">轿车</option>
-                        <option value="Van">商务车</option>
-                        <option value="Truck">货车</option>
+                        <option value="Sedan">轿车 (Sedan)</option>
+                        <option value="Van">商务车 (Van)</option>
+                        <option value="Truck">货车 (Truck)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">当前里程 (KM)</label>
-                      {/* Fixed: replaced empty string with 0 in ternary to ensure mileage is always a number or undefined */}
-                      <input type="number" value={newVehicleData.mileage} onChange={e => setNewVehicleData({...newVehicleData, mileage: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">外观颜色</label>
+                      <input type="text" placeholder="白色 / 黑色 / 银色" value={newVehicleData.color} onChange={e => setNewVehicleData({...newVehicleData, color: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 rounded-2xl font-bold transition-all outline-none" />
                     </div>
                   </div>
-                  <div className="pt-4">
+
+                  <div className="grid grid-cols-3 gap-6">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">核定载客</label>
+                      <input type="number" value={newVehicleData.seats} onChange={e => setNewVehicleData({...newVehicleData, seats: e.target.value === '' ? 0 : Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">车龄 (年)</label>
+                      <input type="number" value={newVehicleData.age} onChange={e => setNewVehicleData({...newVehicleData, age: e.target.value === '' ? 0 : Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block px-1">当前里程 (KM)</label>
+                      <input type="number" value={newVehicleData.mileage} onChange={e => setNewVehicleData({...newVehicleData, mileage: e.target.value === '' ? 0 : Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="pt-6">
                     <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-6 rounded-[24px] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 shadow-2xl shadow-indigo-900/40 transition-all active:scale-95">
-                      <Check className="w-5 h-5" /> 执行资产入库同步
+                      <Check className="w-5 h-5" /> 确认入库并推送云端 D1
                     </button>
                   </div>
                </form>
