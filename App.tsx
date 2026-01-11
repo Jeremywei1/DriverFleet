@@ -269,7 +269,7 @@ CREATE TABLE tasks (id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, v
             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                  {[
-                   { label: '待处理单量', val: todayTasksCount, icon: ClipboardList, color: 'indigo' },
+                   { label: '当日任务量', val: todayTasksCount, icon: ClipboardList, color: 'indigo' },
                    { label: '在册人力', val: drivers.length, icon: Users, color: 'emerald' },
                    { label: '资产规模', val: vehicles.length, icon: Car, color: 'blue' },
                    { label: '负载率', val: '84%', icon: Activity, color: 'rose' }
