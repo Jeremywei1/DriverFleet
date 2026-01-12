@@ -7,9 +7,10 @@ interface Props {
   tasks: Task[];
   drivers: Driver[];
   onDeleteTask?: (id: string, date: string) => void;
+  selectedDate: string;
 }
 
-const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask }) => {
+const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask, selectedDate }) => {
   const getDriverName = (id: string | null) => {
     if (!id) return "未分配";
     return drivers.find(d => d.id === id)?.name || "未知";
@@ -42,7 +43,7 @@ const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask }) => {
     
     if (isMultiDay) {
       return (
-        <span className="flex items-center gap-1.5 text-emerald-600">
+        <span className="flex items-center gap-1.5 text-emerald-600 font-black">
           <Layers className="w-3 h-3" />
           跨天: {start.getMonth()+1}/{start.getDate()} - {end.getMonth()+1}/{end.getDate()}
         </span>
@@ -61,20 +62,25 @@ const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask }) => {
   return (
     <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 h-full flex flex-col overflow-hidden">
       <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white">
-        <h2 className="text-xl font-black text-slate-800 flex items-center gap-3 italic uppercase">
-          <Truck className="w-5 h-5 text-indigo-600" />
-          当日调度日志
-        </h2>
-        <span className="bg-indigo-50 text-indigo-600 text-[10px] px-3 py-1 rounded-xl font-black uppercase tracking-widest border border-indigo-100">
-          {tasks.length} 笔
+        <div className="flex flex-col">
+          <h2 className="text-xl font-black text-slate-800 flex items-center gap-3 italic uppercase">
+            <Truck className="w-5 h-5 text-indigo-600" />
+            调度日志
+          </h2>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">{selectedDate} 日程明细</span>
+        </div>
+        <span className="bg-indigo-50 text-indigo-600 text-[10px] px-3 py-1 rounded-xl font-black uppercase tracking-widest border border-indigo-100 shadow-sm">
+          {tasks.length} 笔记录
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide bg-slate-50/20">
         {tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-300">
-            <AlertCircle className="w-10 h-10 mb-2 opacity-20" />
-            <p className="text-[10px] font-black uppercase tracking-[0.2em]">选定日期暂无调度</p>
+          <div className="flex flex-col items-center justify-center py-24 text-slate-300">
+            <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mb-4 shadow-sm border border-slate-100">
+               <AlertCircle className="w-8 h-8 text-slate-100" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] italic">选定日期暂无调度任务</p>
           </div>
         ) : (
           tasks.map(task => {
@@ -89,35 +95,38 @@ const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask }) => {
                 </button>
 
                 <div className="flex justify-between items-start mb-4 pr-10">
-                  <div>
-                    <h3 className="font-black text-slate-800 italic uppercase tracking-tight truncate max-w-[140px]">{task.title}</h3>
-                    <p className="text-[10px] font-bold text-slate-400 flex items-center mt-1 uppercase tracking-widest">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="font-black text-slate-800 italic uppercase tracking-tight truncate max-w-[140px] text-base">{task.title}</h3>
+                    <div className="text-[10px] font-bold text-slate-400 flex items-center uppercase tracking-widest">
                       {formatTaskTime(task)}
-                    </p>
+                    </div>
                   </div>
                   <span className={`text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest border ${statusConfig.class}`}>
                     {statusConfig.label}
                   </span>
                 </div>
                 
-                <div className="flex items-center gap-2 mb-4 bg-slate-50 p-4 rounded-2xl text-[10px] font-bold text-slate-500 border border-slate-100/50">
+                <div className="flex items-center gap-2 mb-4 bg-slate-50 p-4 rounded-2xl text-[10px] font-bold text-slate-500 border border-slate-100/50 group-hover:bg-slate-100 transition-colors">
                    <div className="flex-1 truncate">
                       {task.locationStart}
                    </div>
-                   <ArrowRight className="w-3 h-3 text-slate-300 mx-1" />
+                   <ArrowRight className="w-3 h-3 text-indigo-300 mx-1" />
                    <div className="flex-1 truncate text-right">
                       {task.locationEnd}
                    </div>
                 </div>
 
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center mt-2">
                   <div className="flex items-center gap-3">
-                     <div className="w-8 h-8 rounded-xl bg-slate-900 flex items-center justify-center text-[10px] font-black text-white uppercase italic">
+                     <div className="w-8 h-8 rounded-xl bg-slate-900 flex items-center justify-center text-[10px] font-black text-white uppercase italic shadow-lg group-hover:bg-indigo-600 transition-colors">
                         {getDriverName(task.driverId).charAt(0)}
                      </div>
-                     <span className="text-slate-700 font-black text-xs italic">{getDriverName(task.driverId)}</span>
+                     <span className="text-slate-700 font-black text-xs italic uppercase tracking-tighter">{getDriverName(task.driverId)}</span>
                   </div>
-                  <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md">{task.distanceKm} KM</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">距离 {task.distanceKm} KM</span>
+                    {task.priority === 'HIGH' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>}
+                  </div>
                 </div>
               </div>
             );
