@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>DriverFleet Pro | 车队管家</title>
     
     <script>
@@ -40,8 +39,33 @@
       .scrollbar-hide::-webkit-scrollbar { display: none; }
       .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       .transition-all { transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1); }
-      * { -webkit-tap-highlight-color: transparent; }
-      html, body, #root { height: 100%; margin: 0; padding: 0; }
+      
+      /* Mobile Touch Optimizations */
+      * { 
+        -webkit-tap-highlight-color: transparent; 
+        touch-action: manipulation; 
+      }
+      
+      html, body, #root { 
+        height: 100%; 
+        margin: 0; 
+        padding: 0; 
+        overscroll-behavior-y: contain;
+      }
+
+      button:active {
+        transform: scale(0.96);
+      }
+
+      .card-active:active {
+        transform: scale(0.98);
+      }
+
+      @media (max-width: 640px) {
+        button, a, select, input {
+          min-height: 44px;
+        }
+      }
     </style>
 
     <script type="importmap">
