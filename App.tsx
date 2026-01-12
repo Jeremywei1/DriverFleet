@@ -13,7 +13,7 @@ import SyncMonitor from './components/SyncMonitor';
 import { 
   LayoutDashboard, Users, BarChart3, Settings, Clock, Car, Zap, Database, 
   ClipboardList, Activity, Code, Copy, Lock, KeyRound, 
-  LogOut, ArrowRight, Info, Loader2
+  LogOut, ArrowRight, Info, Loader2, Calendar as CalendarIcon, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Driver, Vehicle, Task } from './types';
 
@@ -77,7 +77,7 @@ const LoginGate: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => sessionStorage.getItem('fleet_session') === 'active');
-  const [currentDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'drivers' | 'monitor' | 'vehicles' | 'matching' | 'deploy'>('dashboard');
   const [monitorSubTab, setMonitorSubTab] = useState<'driver' | 'vehicle'>('driver');
   const [isLoading, setIsLoading] = useState(true);
@@ -113,9 +113,16 @@ const App: React.FC = () => {
 
   const stats = useMemo(() => generateStats(Array.isArray(drivers) ? drivers : []), [drivers]);
 
+  // 更新：看板统计应仅包含当日任务
   const todayTasksCount = useMemo(() => {
-    return (Array.isArray(tasks) ? tasks : []).filter(t => t.startTime && t.startTime.startsWith(currentDate)).length;
-  }, [tasks, currentDate]);
+    return tasks.length;
+  }, [tasks]);
+
+  const changeDate = (offset: number) => {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + offset);
+    setCurrentDate(d.toISOString().split('T')[0]);
+  };
 
   const handleLogin = () => {
     setIsLoggedIn(true);
@@ -147,7 +154,12 @@ const App: React.FC = () => {
       date: partialTask.date || currentDate,
       operation_timestamp: ts
     };
-    setTasks(prev => [newTask, ...prev]);
+    
+    // 如果是创建当前日期的任务，立即更新 UI
+    if (newTask.date === currentDate) {
+      setTasks(prev => [newTask, ...prev]);
+    }
+    
     await storage.syncSingle('tasks', newTask);
     setActiveTab('dashboard');
   }, [currentDate]);
@@ -189,8 +201,6 @@ const App: React.FC = () => {
 
   const schemaSQL = `
 -- ⚠️ 终极扁平化底表脚本 (D1 控制台运行)
--- 包含 gender 字段以支持前端 UI 的性别录入同步
-
 DROP TABLE IF EXISTS drivers;
 DROP TABLE IF EXISTS vehicles;
 DROP TABLE IF EXISTS tasks;
@@ -291,12 +301,32 @@ CREATE TABLE tasks (
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="bg-white border-b border-slate-100 p-6 flex justify-between items-center z-[50] shrink-0">
-           <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">
-             {activeTab === 'dashboard' && '运营中心'}
-             {activeTab === 'matching' && '排程规划'}
-             {activeTab === 'monitor' && '资产负载图'}
-             {activeTab === 'deploy' && 'D1 数据结构'}
-           </h1>
+           <div className="flex items-center gap-8">
+              <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">
+                {activeTab === 'dashboard' && '运营中心'}
+                {activeTab === 'matching' && '排程规划'}
+                {activeTab === 'monitor' && '资产负载图'}
+                {activeTab === 'deploy' && 'D1 数据结构'}
+              </h1>
+
+              {/* 日期导航器 - 仅在运营中心显示 */}
+              {activeTab === 'dashboard' && (
+                <div className="flex items-center bg-slate-900 px-4 py-2 rounded-2xl shadow-lg border border-slate-800 gap-4">
+                  <button onClick={() => changeDate(-1)} className="text-slate-500 hover:text-white transition-colors"><ChevronLeft className="w-5 h-5" /></button>
+                  <div className="flex items-center gap-2">
+                     <CalendarIcon className="w-4 h-4 text-emerald-400" />
+                     <input 
+                       type="date" 
+                       value={currentDate} 
+                       onChange={(e) => setCurrentDate(e.target.value)}
+                       className="bg-transparent text-white font-black text-[11px] uppercase tracking-widest outline-none cursor-pointer"
+                     />
+                  </div>
+                  <button onClick={() => changeDate(1)} className="text-slate-500 hover:text-white transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                </div>
+              )}
+           </div>
+
            <div className="flex items-center gap-4">
               <div className="text-right hidden md:block">
                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fleet Master D1</div>
@@ -310,10 +340,10 @@ CREATE TABLE tasks (
             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                  {[
-                   { label: '当日任务量', val: todayTasksCount, icon: ClipboardList, color: 'indigo' },
+                   { label: `${currentDate} 任务量`, val: todayTasksCount, icon: ClipboardList, color: 'indigo' },
                    { label: '在册人力', val: Array.isArray(drivers) ? drivers.length : 0, icon: Users, color: 'emerald' },
                    { label: '资产规模', val: Array.isArray(vehicles) ? vehicles.length : 0, icon: Car, color: 'blue' },
-                   { label: '负载率', val: '84%', icon: Activity, color: 'rose' }
+                   { label: '平均负载率', val: '84%', icon: Activity, color: 'rose' }
                  ].map((s, i) => (
                    <div key={i} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
                       <div className={`w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 text-indigo-500`}><s.icon className="w-6 h-6" /></div>
@@ -380,12 +410,6 @@ CREATE TABLE tasks (
                  </div>
                  <div className="bg-black/50 p-8 rounded-3xl font-mono text-[11px] text-indigo-300 border border-white/5 leading-relaxed overflow-x-auto shadow-inner">
                    <pre>{schemaSQL}</pre>
-                 </div>
-                 <div className="mt-8 flex items-center gap-4 p-6 bg-white/5 rounded-3xl border border-white/5">
-                    <Info className="w-6 h-6 text-amber-500 shrink-0" />
-                    <p className="text-xs text-slate-400 leading-relaxed font-bold uppercase tracking-tight">
-                      建议：每次录入失效时，请清空 D1 对应表并运行此脚本。当前版本已包含 gender 字段，并支持坐标、评分等全量字段同步。
-                    </p>
                  </div>
               </div>
             </div>
