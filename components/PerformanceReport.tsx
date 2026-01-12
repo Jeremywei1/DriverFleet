@@ -1,8 +1,8 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DriverStats, Task } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { BarChart3, TrendingUp, Calendar } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, ChevronRight, Filter } from 'lucide-react';
 
 interface Props {
   stats: DriverStats[];
@@ -10,21 +10,38 @@ interface Props {
 }
 
 const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
-  // 核心逻辑调整：任务布置即为完成，计算每个司机的总指派单量（剔除已取消单量）
+  // 获取今日日期字符串
+  const today = new Date().toISOString().split('T')[0];
+  // 计算一周前的日期
+  const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // 状态：日期范围选择
+  const [startDate, setStartDate] = useState(lastWeek);
+  const [endDate, setEndDate] = useState(today);
+
+  // 核心逻辑调整：根据日期范围过滤任务，并计算完成单量
   const reportData = useMemo(() => {
     return stats.map(driver => {
-      // 获取该司机所有非取消状态的任务
-      const assignedTasks = tasks.filter(t => t.driverId === driver.driverId && t.status !== 'CANCELLED');
-      const totalCount = assignedTasks.length;
+      // 过滤出该司机在选定日期区间内、且非取消状态的任务
+      const filteredTasks = tasks.filter(t => {
+        const taskDate = t.date || t.startTime.split('T')[0];
+        return (
+          t.driverId === driver.driverId && 
+          t.status !== 'CANCELLED' &&
+          taskDate >= startDate &&
+          taskDate <= endDate
+        );
+      });
+      
+      const count = filteredTasks.length;
       
       return {
         name: driver.name,
-        completedCount: totalCount, // 此时完成单量直接等于创建/指派单量
-        totalCount: totalCount,
+        completedCount: count,
         efficiencyScore: driver.efficiencyScore
       };
     }).sort((a, b) => b.completedCount - a.completedCount);
-  }, [stats, tasks]);
+  }, [stats, tasks, startDate, endDate]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -32,10 +49,12 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
         <div className="bg-white p-4 border border-slate-100 shadow-2xl rounded-2xl">
           <p className="font-black text-slate-800 mb-2 italic uppercase tracking-tight">{label}</p>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-            <p className="text-indigo-600 text-xs font-black uppercase">调度执行数: {payload[0].value} 单</p>
+            <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.4)]"></div>
+            <p className="text-indigo-600 text-xs font-black uppercase">区间调度数: {payload[0].value} 单</p>
           </div>
-          <p className="text-slate-400 text-[9px] font-bold mt-1 uppercase tracking-widest">指派即计入效能统计</p>
+          <p className="text-slate-400 text-[8px] font-bold mt-2 uppercase tracking-[0.2em] border-t border-slate-50 pt-2">
+            统计周期: {startDate} 至 {endDate}
+          </p>
         </div>
       );
     }
@@ -44,7 +63,7 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
 
   return (
     <div className="bg-white rounded-[48px] shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden animate-in fade-in duration-700">
-      <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white">
+      <div className="p-8 border-b border-slate-50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl">
             <BarChart3 className="w-6 h-6 text-emerald-400" />
@@ -54,21 +73,43 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
               司机调度效能看板
             </h2>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-              任务指派即计入完成度 · 实时核算 D1
+              任务指派即计入完成度 · 支持多日期跨度查询
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-           <Calendar className="w-4 h-4 text-indigo-500" />
-           <span>统计窗口: {new Date().toLocaleDateString()}</span>
+
+        {/* 日期选择器控制组 */}
+        <div className="flex items-center gap-3 bg-slate-900 p-2.5 rounded-[24px] shadow-2xl border border-slate-800">
+           <div className="flex items-center gap-3 px-3">
+              <Filter className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">区间筛选</span>
+           </div>
+           <div className="flex items-center bg-white/5 rounded-xl border border-white/5 overflow-hidden">
+             <input 
+               type="date" 
+               value={startDate} 
+               onChange={(e) => setStartDate(e.target.value)}
+               className="bg-transparent text-white text-[10px] font-black px-4 py-2 outline-none border-none uppercase hover:bg-white/10 transition-colors cursor-pointer"
+             />
+             <div className="w-px h-4 bg-white/10" />
+             <input 
+               type="date" 
+               value={endDate} 
+               onChange={(e) => setEndDate(e.target.value)}
+               className="bg-transparent text-white text-[10px] font-black px-4 py-2 outline-none border-none uppercase hover:bg-white/10 transition-colors cursor-pointer"
+             />
+           </div>
         </div>
       </div>
 
-      <div className="flex-1 p-10 flex flex-col gap-10 overflow-hidden">
+      <div className="flex-1 p-10 flex flex-col gap-10 overflow-hidden bg-slate-50/20">
         {/* 核心柱状图 */}
-        <div className="flex-[1.2] min-h-[350px] bg-slate-50/50 rounded-[40px] p-8 border border-slate-100 shadow-inner">
+        <div className="flex-[1.2] min-h-[350px] bg-white rounded-[40px] p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
+           <div className="absolute top-6 right-8 text-[9px] font-black text-slate-300 uppercase tracking-widest group-hover:text-indigo-400 transition-colors">
+             {startDate} - {endDate} 效能对比图
+           </div>
            <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={reportData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={reportData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 
                 dataKey="name" 
@@ -82,10 +123,10 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
                 axisLine={false} 
                 tickLine={false} 
               />
-              <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(99, 102, 241, 0.04)'}} />
-              <Bar dataKey="completedCount" radius={[12, 12, 0, 0]} barSize={48}>
+              <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(79, 70, 229, 0.03)'}} />
+              <Bar dataKey="completedCount" radius={[12, 12, 0, 0]} barSize={40}>
                 {reportData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={index < 3 ? '#4F46E5' : '#E2E8F0'} />
+                  <Cell key={`cell-${index}`} fill={index < 3 ? '#4F46E5' : '#CBD5E1'} />
                 ))}
               </Bar>
             </BarChart>
@@ -95,17 +136,17 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
         {/* 详细列表表格 */}
         <div className="flex-1 overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-600">
-            <thead className="text-[10px] text-slate-400 uppercase font-black tracking-widest bg-slate-50/80 border-b border-slate-100">
+            <thead className="text-[10px] text-slate-400 uppercase font-black tracking-widest bg-slate-50/50 border-b border-slate-100 sticky top-0">
               <tr>
                 <th className="px-6 py-4">司机标识</th>
-                <th className="px-6 py-4 text-center">已调度执行 (单)</th>
-                <th className="px-6 py-4 text-center">任务饱和度</th>
-                <th className="px-6 py-4 text-right">效率 SC</th>
+                <th className="px-6 py-4 text-center">区间调度数 (单)</th>
+                <th className="px-6 py-4 text-center">任务饱和度参考</th>
+                <th className="px-6 py-4 text-right">效率系数 SC</th>
               </tr>
             </thead>
             <tbody>
               {reportData.map((data, idx) => (
-                <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50/80 transition-all group">
+                <tr key={idx} className="border-b border-slate-50 hover:bg-white transition-all group">
                   <td className="px-6 py-5 font-black text-slate-800 italic uppercase tracking-tight group-hover:text-indigo-600">
                     {data.name}
                   </td>
@@ -114,19 +155,23 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
                   </td>
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-4">
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-1000" 
-                          style={{ width: `${Math.min(100, (data.completedCount / 8) * 100)}%` }}
+                          className={`h-full bg-indigo-600 rounded-full transition-all duration-1000 ${data.completedCount > 0 ? 'opacity-100' : 'opacity-0'}`} 
+                          style={{ width: `${Math.min(100, (data.completedCount / 15) * 100)}%` }}
                         ></div>
                       </div>
-                      <span className="text-[10px] font-black text-slate-400 w-8">
-                        {Math.min(100, Math.round((data.completedCount / 8) * 100))}%
+                      <span className="text-[10px] font-black text-slate-300 w-8">
+                        {Math.min(100, Math.round((data.completedCount / 15) * 100))}%
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black border ${data.efficiencyScore >= 90 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black border transition-colors ${
+                      data.efficiencyScore >= 90 
+                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white' 
+                        : 'bg-slate-50 text-slate-400 border-slate-100 group-hover:bg-slate-600 group-hover:text-white'
+                    }`}>
                       {data.efficiencyScore}
                     </span>
                   </td>
@@ -137,15 +182,17 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
         </div>
       </div>
       
-      <div className="px-10 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+      <div className="px-10 py-4 bg-white border-t border-slate-100 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex -space-x-2">
+             {[1,2,3].map(i => <div key={i} className="w-5 h-5 rounded-full border-2 border-white bg-slate-200" />)}
+          </div>
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-            当前计算模型：调度即完成 (Assigned-as-Done)
+            当前区间已记录 {reportData.reduce((acc, curr) => acc + curr.completedCount, 0)} 次有效指派
           </span>
         </div>
-        <div className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">
-          DATA ANALYTICS ENGINE V4.0
+        <div className="text-[9px] font-black text-indigo-300 uppercase tracking-[0.3em] italic">
+          MULTI-WINDOW ANALYTICS V5.0
         </div>
       </div>
     </div>

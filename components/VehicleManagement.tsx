@@ -4,7 +4,7 @@ import { Vehicle } from '../types';
 import { 
   Car, Wrench, ShieldCheck, AlertTriangle, 
   Settings, X, Edit2, PlusCircle, Power, PowerOff, Check,
-  Palette, Users as UsersIcon, Calendar as CalendarIcon, Gauge, Trash2
+  Palette, Users as UsersIcon, Calendar as CalendarIcon, Gauge, Trash2, Save
 } from 'lucide-react';
 
 interface Props {
@@ -54,9 +54,7 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // 即使没填牌照也给个默认值，防止由于严格必填导致的心理负担
     const finalPlate = newVehicleData.plateNumber?.trim() || `待定-${Date.now().toString().slice(-4)}`;
-
     const vehicle: Vehicle = {
       id: `v-${Date.now()}`,
       plateNumber: finalPlate,
@@ -70,7 +68,6 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
       age: Number(newVehicleData.age) || 0,
       isActive: true
     };
-
     onAddVehicle(vehicle);
     setIsAdding(false);
     setNewVehicleData({
@@ -149,6 +146,79 @@ const VehicleManagement: React.FC<Props> = ({ vehicles, onUpdateVehicle, onAddVe
           </div>
         ))}
       </div>
+
+      {/* 新增：资产编辑浮层 */}
+      {editingVehicle && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-2xl animate-in fade-in duration-300" onClick={() => setEditingVehicle(null)}></div>
+          <div className="relative bg-white rounded-[56px] shadow-2xl w-full max-w-3xl p-12 animate-in zoom-in-95 duration-300 border border-white/20">
+             <div className="flex justify-between items-center mb-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl">
+                    <Edit2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black italic uppercase">编辑资产参数</h3>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{editingVehicle.id}</p>
+                  </div>
+                </div>
+                <button onClick={() => setEditingVehicle(null)} className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all text-slate-400"><X className="w-5 h-5" /></button>
+             </div>
+             
+             <form onSubmit={handleSaveEdit} className="space-y-8">
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">车牌号码</label>
+                    <input type="text" value={editingVehicle.plateNumber} onChange={e => setEditingVehicle({...editingVehicle, plateNumber: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">品牌型号</label>
+                    <input type="text" value={editingVehicle.model} onChange={e => setEditingVehicle({...editingVehicle, model: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" required />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">车辆类型</label>
+                    <select value={editingVehicle.type} onChange={e => setEditingVehicle({...editingVehicle, type: e.target.value as any})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none appearance-none">
+                      <option value="Sedan">舒适轿车 (Sedan)</option>
+                      <option value="Van">商务车 (Van)</option>
+                      <option value="Truck">货运卡车 (Truck)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">外观颜色</label>
+                    <input type="text" value={editingVehicle.color} onChange={e => setEditingVehicle({...editingVehicle, color: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
+                      <Gauge className="w-3 h-3" /> 当前里程 (KM)
+                    </label>
+                    <input type="number" min="0" value={editingVehicle.mileage} onChange={e => setEditingVehicle({...editingVehicle, mileage: Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">车龄 (年)</label>
+                    <input type="number" min="0" value={editingVehicle.age} onChange={e => setEditingVehicle({...editingVehicle, age: Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">座位数</label>
+                    <input type="number" min="1" value={editingVehicle.seats} onChange={e => setEditingVehicle({...editingVehicle, seats: Number(e.target.value)})} className="w-full p-4 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                  </div>
+                </div>
+
+                <div className="pt-6">
+                  <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white py-6 rounded-[32px] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 shadow-2xl transition-all active:scale-95">
+                    <Save className="w-5 h-5 text-emerald-400" /> 更新资产数据到云端
+                  </button>
+                  <p className="text-center text-[9px] text-slate-400 font-black uppercase tracking-widest mt-4">数据变更将通过 D1 异步引擎进行分布式同步</p>
+                </div>
+             </form>
+          </div>
+        </div>
+      )}
 
       {isAdding && (
          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

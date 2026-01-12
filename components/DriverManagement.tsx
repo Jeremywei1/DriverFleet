@@ -4,7 +4,7 @@ import { Driver, DriverStats, DriverStatus } from '../types';
 import { 
   Phone, Edit2, X, Star, Calendar, 
   User, UserCircle, Power, PowerOff, PlusCircle, Check,
-  Briefcase, Trash2
+  Briefcase, Trash2, Save
 } from 'lucide-react';
 
 interface Props {
@@ -48,10 +48,7 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // 弹性处理：即使没填名字也让过，防止由于严格格式导致的同步中断
     const finalName = newDriverData.name?.trim() || `临时编号-${Date.now().toString().slice(-4)}`;
-
     const newDriver: Driver = {
       id: `d-${Date.now()}`,
       name: finalName,
@@ -65,7 +62,6 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
       avatar: `https://i.pravatar.cc/150?u=new-${Date.now()}`,
       rating: 5.0
     };
-
     onAddDriver(newDriver);
     setIsAdding(false);
     setNewDriverData({ name: '', phone: '', gender: 'Male', experience_years: 1, isActive: true });
@@ -156,6 +152,57 @@ const DriverManagement: React.FC<Props> = ({ drivers, stats, onUpdateDriver, onA
           );
         })}
       </div>
+
+      {/* 新增：编辑司机浮层 */}
+      {editingDriver && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-2xl animate-in fade-in duration-300" onClick={() => setEditingDriver(null)}></div>
+          <div className="relative bg-white rounded-[56px] shadow-2xl w-full max-w-xl p-12 animate-in zoom-in-95 duration-300 border border-white/20">
+             <div className="flex justify-between items-center mb-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                    <Edit2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-800 italic uppercase tracking-tighter">编辑司机档案</h3>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{editingDriver.id}</p>
+                  </div>
+                </div>
+                <button onClick={() => setEditingDriver(null)} className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all text-slate-400"><X className="w-5 h-5" /></button>
+             </div>
+             
+             <form onSubmit={handleEditSave} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">真实姓名</label>
+                  <input type="text" value={editingDriver.name} onChange={e => setEditingDriver({...editingDriver, name: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" required />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">联系电话</label>
+                  <input type="tel" value={editingDriver.phone} onChange={e => setEditingDriver({...editingDriver, phone: e.target.value})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 focus:border-indigo-500/20 focus:bg-white rounded-2xl font-bold transition-all outline-none" required />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">性别</label>
+                    <select value={editingDriver.gender} onChange={e => setEditingDriver({...editingDriver, gender: e.target.value as any})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none appearance-none">
+                      <option value="Male">男性</option>
+                      <option value="Female">女性</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">驾龄 (年)</label>
+                    <input type="number" min="0" max="50" value={editingDriver.experience_years} onChange={e => setEditingDriver({...editingDriver, experience_years: Number(e.target.value)})} className="w-full p-5 bg-slate-50 border-2 border-slate-50 rounded-2xl font-bold outline-none" />
+                  </div>
+                </div>
+                <div className="pt-8">
+                  <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white py-6 rounded-[32px] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-4 shadow-2xl transition-all active:scale-95">
+                    <Save className="w-5 h-5 text-indigo-400" /> 保存变更并推送到云端
+                  </button>
+                  <p className="text-center text-[9px] text-slate-400 font-black uppercase tracking-widest mt-4">变更将实时反映在 D1 后台数据库</p>
+                </div>
+             </form>
+          </div>
+        </div>
+      )}
 
       {isAdding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
