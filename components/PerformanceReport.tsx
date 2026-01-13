@@ -1,36 +1,69 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { DriverStats, Task } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { BarChart3, TrendingUp, Calendar, ChevronRight, Filter } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, ChevronRight, Filter, RefreshCcw } from 'lucide-react';
 
 interface Props {
   stats: DriverStats[];
   tasks: Task[];
+  selectedDate: string; // 全局选中的单日
+  onModeChange?: (isRangeMode: boolean) => void; // 通知父组件当前模式
 }
 
-const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
+const PerformanceReport: React.FC<Props> = ({ stats, tasks, selectedDate, onModeChange }) => {
   // 获取今日日期字符串
   const today = new Date().toISOString().split('T')[0];
   // 计算一周前的日期
   const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+  // 状态：筛选模式 'SINGLE' (跟随全局) 或 'RANGE' (自定义区间)
+  const [filterMode, setFilterMode] = useState<'SINGLE' | 'RANGE'>('SINGLE');
+  
   // 状态：日期范围选择
   const [startDate, setStartDate] = useState(lastWeek);
   const [endDate, setEndDate] = useState(today);
 
-  // 核心逻辑调整：根据日期范围过滤任务，并计算完成单量
+  // 当全局日期变化时，自动重置为单日模式
+  useEffect(() => {
+    setFilterMode('SINGLE');
+  }, [selectedDate]);
+
+  // 当模式变化时，通知父组件（用于模糊顶部日期选择器）
+  useEffect(() => {
+    if (onModeChange) {
+      onModeChange(filterMode === 'RANGE');
+    }
+  }, [filterMode, onModeChange]);
+
+  // 切换到区间模式
+  const handleRangeInteract = () => {
+    setFilterMode('RANGE');
+  };
+
+  // 核心逻辑调整：根据模式和日期范围过滤任务，并计算完成单量
   const reportData = useMemo(() => {
     return stats.map(driver => {
       // 过滤出该司机在选定日期区间内、且非取消状态的任务
       const filteredTasks = tasks.filter(t => {
         const taskDate = t.date || t.startTime.split('T')[0];
-        return (
-          t.driverId === driver.driverId && 
-          t.status !== 'CANCELLED' &&
-          taskDate >= startDate &&
-          taskDate <= endDate
-        );
+        
+        if (filterMode === 'SINGLE') {
+          // 单日模式：严格匹配全局 selectedDate
+          return (
+            t.driverId === driver.driverId && 
+            t.status !== 'CANCELLED' &&
+            taskDate === selectedDate
+          );
+        } else {
+          // 区间模式：匹配 startDate 到 endDate
+          return (
+            t.driverId === driver.driverId && 
+            t.status !== 'CANCELLED' &&
+            taskDate >= startDate &&
+            taskDate <= endDate
+          );
+        }
       });
       
       const count = filteredTasks.length;
@@ -41,7 +74,7 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
         efficiencyScore: driver.efficiencyScore
       };
     }).sort((a, b) => b.completedCount - a.completedCount);
-  }, [stats, tasks, startDate, endDate]);
+  }, [stats, tasks, startDate, endDate, selectedDate, filterMode]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -50,10 +83,12 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
           <p className="font-black text-slate-800 mb-2 italic uppercase tracking-tight">{label}</p>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.4)]"></div>
-            <p className="text-indigo-600 text-xs font-black uppercase">区间调度数: {payload[0].value} 单</p>
+            <p className="text-indigo-600 text-xs font-black uppercase">
+               {filterMode === 'SINGLE' ? '当日' : '区间'}调度数: {payload[0].value} 单
+            </p>
           </div>
           <p className="text-slate-400 text-[8px] font-bold mt-2 uppercase tracking-[0.2em] border-t border-slate-50 pt-2">
-            统计周期: {startDate} 至 {endDate}
+            统计周期: {filterMode === 'SINGLE' ? selectedDate : `${startDate} 至 ${endDate}`}
           </p>
         </div>
       );
@@ -72,33 +107,50 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
             <h2 className="text-xl font-black text-slate-800 italic uppercase tracking-tighter">
               司机调度效能看板
             </h2>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-              任务指派即计入完成度 · 支持多日期跨度查询
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${filterMode === 'SINGLE' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                 {filterMode === 'SINGLE' ? '单日视图' : '聚合视图'}
+               </span>
+               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                 任务指派即计入完成度
+               </p>
+            </div>
           </div>
         </div>
 
-        {/* 日期选择器控制组 */}
-        <div className="flex items-center gap-3 bg-slate-900 p-2.5 rounded-[24px] shadow-2xl border border-slate-800">
+        {/* 日期选择器控制组 - 增加视觉模糊逻辑 */}
+        <div 
+          onClick={handleRangeInteract}
+          className={`flex items-center gap-3 bg-slate-900 p-2.5 rounded-[24px] shadow-2xl border border-slate-800 transition-all duration-300 ${filterMode === 'SINGLE' ? 'opacity-60 blur-[1px] hover:opacity-100 hover:blur-0 cursor-pointer scale-95' : 'scale-100'}`}
+        >
            <div className="flex items-center gap-3 px-3">
-              <Filter className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">区间筛选</span>
+              <Filter className={`w-3.5 h-3.5 ${filterMode === 'RANGE' ? 'text-indigo-400' : 'text-slate-500'}`} />
+              <span className={`text-[9px] font-black uppercase tracking-widest ${filterMode === 'RANGE' ? 'text-white' : 'text-slate-500'}`}>区间筛选</span>
            </div>
            <div className="flex items-center bg-white/5 rounded-xl border border-white/5 overflow-hidden">
              <input 
                type="date" 
                value={startDate} 
-               onChange={(e) => setStartDate(e.target.value)}
+               onChange={(e) => { setStartDate(e.target.value); handleRangeInteract(); }}
                className="bg-transparent text-white text-[10px] font-black px-4 py-2 outline-none border-none uppercase hover:bg-white/10 transition-colors cursor-pointer"
              />
              <div className="w-px h-4 bg-white/10" />
              <input 
                type="date" 
                value={endDate} 
-               onChange={(e) => setEndDate(e.target.value)}
+               onChange={(e) => { setEndDate(e.target.value); handleRangeInteract(); }}
                className="bg-transparent text-white text-[10px] font-black px-4 py-2 outline-none border-none uppercase hover:bg-white/10 transition-colors cursor-pointer"
              />
            </div>
+           {filterMode === 'RANGE' && (
+             <button 
+               onClick={(e) => { e.stopPropagation(); setFilterMode('SINGLE'); }}
+               className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
+               title="重置回单日模式"
+             >
+                <RefreshCcw className="w-3 h-3" />
+             </button>
+           )}
         </div>
       </div>
 
@@ -106,7 +158,7 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
         {/* 核心柱状图 */}
         <div className="flex-[1.2] min-h-[350px] bg-white rounded-[40px] p-8 border border-slate-100 shadow-sm relative overflow-hidden group">
            <div className="absolute top-6 right-8 text-[9px] font-black text-slate-300 uppercase tracking-widest group-hover:text-indigo-400 transition-colors">
-             {startDate} - {endDate} 效能对比图
+             {filterMode === 'SINGLE' ? selectedDate : `${startDate} - ${endDate}`} 效能对比图
            </div>
            <ResponsiveContainer width="100%" height="100%">
             <BarChart data={reportData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
@@ -139,7 +191,7 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
             <thead className="text-[10px] text-slate-400 uppercase font-black tracking-widest bg-slate-50/50 border-b border-slate-100 sticky top-0">
               <tr>
                 <th className="px-6 py-4">司机标识</th>
-                <th className="px-6 py-4 text-center">区间调度数 (单)</th>
+                <th className="px-6 py-4 text-center">{filterMode === 'SINGLE' ? '当日' : '区间'}调度数 (单)</th>
                 <th className="px-6 py-4 text-center">任务饱和度参考</th>
                 <th className="px-6 py-4 text-right">效率系数 SC</th>
               </tr>
@@ -188,7 +240,7 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks }) => {
              {[1,2,3].map(i => <div key={i} className="w-5 h-5 rounded-full border-2 border-white bg-slate-200" />)}
           </div>
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-            当前区间已记录 {reportData.reduce((acc, curr) => acc + curr.completedCount, 0)} 次有效指派
+            {filterMode === 'SINGLE' ? `当前单日 (${selectedDate})` : `当前区间 (${startDate} - ${endDate})`} 已记录 {reportData.reduce((acc, curr) => acc + curr.completedCount, 0)} 次有效指派
           </span>
         </div>
         <div className="text-[9px] font-black text-indigo-300 uppercase tracking-[0.3em] italic">

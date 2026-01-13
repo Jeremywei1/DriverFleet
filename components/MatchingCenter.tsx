@@ -10,6 +10,7 @@ import {
 interface Props {
   drivers: Driver[];
   vehicles: Vehicle[];
+  tasks: Task[]; // 新增 tasks 属性
   driverSchedules: DriverSchedule[];
   vehicleSchedules: VehicleSchedule[];
   onCreateTask: (task: Partial<Task>) => void;
@@ -20,6 +21,7 @@ interface Props {
 const MatchingCenter: React.FC<Props> = ({ 
   drivers, 
   vehicles, 
+  tasks,
   driverSchedules, 
   vehicleSchedules, 
   onCreateTask,
@@ -35,32 +37,70 @@ const MatchingCenter: React.FC<Props> = ({
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
+  // 辅助函数：判断司机在特定时间片是否忙碌 (基于真实 Tasks 数据)
+  const isDriverBusyAtSlot = (driverId: string, slotIdx: number, date: string) => {
+    const slotTimeStart = slotIdx / 2;
+    const slotTimeEnd = (slotIdx + 1) / 2;
+
+    return tasks.some(t => {
+      // 必须是该司机的任务，且不是取消状态
+      if (t.driverId !== driverId || t.status === 'CANCELLED') return false;
+      
+      // 处理日期匹配
+      const taskDate = t.date || t.startTime.split('T')[0];
+      if (taskDate !== date) return false;
+
+      // 解析任务起止时间的小时数
+      const start = new Date(t.startTime);
+      const end = new Date(t.endTime);
+      const taskStartHour = start.getHours() + start.getMinutes() / 60;
+      const taskEndHour = end.getHours() + end.getMinutes() / 60;
+
+      // 简单的时间重叠逻辑
+      return (slotTimeStart >= taskStartHour && slotTimeStart < taskEndHour);
+    });
+  };
+
+  // 辅助函数：判断车辆在特定时间片是否被占用
+  const isVehicleBusyAtSlot = (vehicleId: string, slotIdx: number, date: string) => {
+    const slotTimeStart = slotIdx / 2;
+    return tasks.some(t => {
+      if (t.vehicleId !== vehicleId || t.status === 'CANCELLED') return false;
+      const taskDate = t.date || t.startTime.split('T')[0];
+      if (taskDate !== date) return false;
+      const start = new Date(t.startTime);
+      const end = new Date(t.endTime);
+      const taskStartHour = start.getHours() + start.getMinutes() / 60;
+      const taskEndHour = end.getHours() + end.getMinutes() / 60;
+      return (slotTimeStart >= taskStartHour && slotTimeStart < taskEndHour);
+    });
+  };
+
   const availableDrivers = useMemo(() => 
     drivers.filter(d => {
       if (!d.isActive) return false;
       if (isMultiDay) return true;
-      const schedule = driverSchedules.find(s => s.driverId === d.id);
-      if (!schedule || !schedule.slots) return true; 
+      
+      // 检查当前规划的时间段内，该司机是否有任何一个 Slot 是 Busy 的
       for(let i = startIdx; i < Math.min(48, startIdx + durationIdx); i++) {
-        if(schedule.slots[i] && schedule.slots[i].status !== DriverStatus.FREE) return false;
+         if (isDriverBusyAtSlot(d.id, i, currentDate)) return false;
       }
       return true;
     }),
-    [drivers, driverSchedules, startIdx, durationIdx, isMultiDay]
+    [drivers, tasks, startIdx, durationIdx, isMultiDay, currentDate]
   );
 
   const availableVehicles = useMemo(() => 
     vehicles.filter(v => {
       if (!v.isActive) return false;
       if (isMultiDay) return true;
-      const schedule = vehicleSchedules.find(s => s.vehicleId === v.id);
-      if (!schedule || !schedule.slots) return true;
+      
       for(let i = startIdx; i < Math.min(48, startIdx + durationIdx); i++) {
-        if(schedule.slots[i] && !schedule.slots[i].isAvailable) return false;
+        if (isVehicleBusyAtSlot(v.id, i, currentDate)) return false;
       }
       return true;
     }),
-    [vehicles, vehicleSchedules, startIdx, durationIdx, isMultiDay]
+    [vehicles, tasks, startIdx, durationIdx, isMultiDay, currentDate]
   );
 
   const handleAssign = (e?: React.FormEvent) => {
@@ -141,8 +181,28 @@ const MatchingCenter: React.FC<Props> = ({
                        <div key={h} className="flex justify-center items-center h-6">
                          <div className="grid grid-cols-2 gap-0.5 w-full h-full px-0.5">
                            {[0, 1].map(half => {
-                             const isPlan = (h * 2 + half) >= startIdx && (h * 2 + half) < startIdx + durationIdx && selectedDriverId === d.id;
-                             return <div key={half} className={`rounded-[2px] transition-all border ${isPlan ? 'bg-indigo-600 border-indigo-700 shadow-md scale-110 z-10' : 'bg-emerald-500/10 border-emerald-500/5'}`} />;
+                             const slotIdx = h * 2 + half;
+                             // 逻辑：该Slot是否在当前【规划中】
+                             const isPlan = slotIdx >= startIdx && slotIdx < startIdx + durationIdx && selectedDriverId === d.id;
+                             // 逻辑：该Slot是否【已被占用】（真实数据）
+                             const isOccupied = isDriverBusyAtSlot(d.id, slotIdx, currentDate);
+                             
+                             let cellClass = 'bg-emerald-500/10 border-emerald-500/5'; // 默认空闲
+                             
+                             if (isOccupied) {
+                               cellClass = 'bg-rose-500/20 border-rose-500/30 shadow-inner'; // 已被占用
+                             }
+                             
+                             if (isPlan) {
+                               // 规划覆盖占用 -> 警告色 (如果重叠)
+                               if (isOccupied) {
+                                  cellClass = 'bg-amber-500 border-amber-600 shadow-md scale-110 z-20 animate-pulse';
+                               } else {
+                                  cellClass = 'bg-indigo-600 border-indigo-700 shadow-md scale-110 z-10'; // 正常规划
+                               }
+                             }
+
+                             return <div key={half} className={`rounded-[2px] transition-all border ${cellClass}`} />;
                            })}
                          </div>
                        </div>
