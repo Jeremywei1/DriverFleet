@@ -13,12 +13,13 @@ import SyncMonitor from './components/SyncMonitor';
 import { 
   LayoutDashboard, Users, BarChart3, Settings, Clock, Car, Zap, Database, 
   ClipboardList, Activity, Code, Copy, Lock, KeyRound, 
-  LogOut, ArrowRight, Info, Loader2, Calendar as CalendarIcon, ChevronLeft, ChevronRight
+  LogOut, ArrowRight, Info, Loader2, Calendar as CalendarIcon, ChevronLeft, ChevronRight,
+  Trash2, Search, Table2, Terminal
 } from 'lucide-react';
 import { Driver, Vehicle, Task } from './types';
 
 const schemaSQL = `
--- Fleet Pro D1 Schema (v3.1)
+-- Fleet Pro D1 Schema (v3.1) - 建表语句
 CREATE TABLE IF NOT EXISTS drivers (
   id TEXT PRIMARY KEY, name TEXT, gender TEXT, phone TEXT, joinDate TEXT, experience_years INTEGER,
   isActive INTEGER DEFAULT 1, currentStatus TEXT DEFAULT 'FREE', coord_x REAL DEFAULT 0,
@@ -33,6 +34,37 @@ CREATE TABLE IF NOT EXISTS tasks (
   startTime TEXT, endTime TEXT, locationStart TEXT, locationEnd TEXT, distanceKm REAL,
   priority TEXT, operation_timestamp TEXT
 );
+`;
+
+const dropSQL = `
+-- ⚠️ 危险操作：格式化（删除）所有底表
+DROP TABLE IF EXISTS drivers;
+DROP TABLE IF EXISTS vehicles;
+DROP TABLE IF EXISTS tasks;
+`;
+
+const performanceReviewSQL = `
+-- 查询特定司机在指定日期范围内的任务量及出勤工时
+SELECT 
+  driverId, 
+  COUNT(*) as total_tasks,             -- 总单量
+  SUM(distanceKm) as total_distance,   -- 总里程 (KM)
+  -- 计算累计工时：(结束时间 - 开始时间) * 24小时，保留1位小数
+  ROUND(SUM((julianday(endTime) - julianday(startTime)) * 24), 1) as total_hours
+FROM tasks 
+WHERE 
+  driverId = 'd-123'         -- [参数] 替换为实际 Driver ID
+  AND date >= '2024-01-01'   -- [参数] 起始日期
+  AND date <= '2024-01-31'   -- [参数] 结束日期
+GROUP BY driverId;
+`;
+
+const assetReviewSQL = `
+-- 1. 检视全量司机档案
+SELECT id, name, phone, currentStatus, rating FROM drivers ORDER BY joinDate DESC;
+
+-- 2. 检视全量车辆资产
+SELECT id, plateNumber, model, type, isActive FROM vehicles ORDER BY id ASC;
 `;
 
 const LoginGate: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -78,6 +110,8 @@ const App: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'drivers' | 'monitor' | 'vehicles' | 'matching' | 'deploy'>('dashboard');
   const [monitorSubTab, setMonitorSubTab] = useState<'driver' | 'vehicle'>('driver');
+  // Deploy Tab 的子状态
+  const [deploySubTab, setDeploySubTab] = useState<'format' | 'performance' | 'asset'>('format');
   
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -164,12 +198,17 @@ const App: React.FC = () => {
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert('SQL 脚本已复制到剪贴板');
+  };
+
   if (!isLoggedIn) return <LoginGate onLogin={() => {setIsLoggedIn(true); sessionStorage.setItem('fleet_session', 'active');}} />;
   if (isInitialLoading) return <div className="h-screen w-screen bg-slate-900 flex items-center justify-center"><Loader2 className="w-12 h-12 text-indigo-500 animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans overflow-hidden">
-      {/* 侧边栏优化：确保底部按钮不会消失 */}
+      {/* 侧边栏 */}
       <aside className="w-full md:w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col h-screen border-r border-slate-800 shadow-2xl z-[100]">
         <div className="p-8 border-b border-slate-800/50">
           <div className="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase italic">
@@ -191,7 +230,6 @@ const App: React.FC = () => {
             </button>
           ))}
         </nav>
-        {/* 修复：重新添加侧边栏底部按钮区域 */}
         <div className="p-6 bg-slate-950/50 border-t border-slate-800 flex-shrink-0">
            <button onClick={handleLogout} className="w-full flex items-center justify-between px-5 py-3 rounded-xl bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-all border border-transparent hover:border-rose-500/20 mb-3 group">
               <span className="text-[10px] font-black uppercase tracking-widest">退出管理</span>
@@ -212,7 +250,7 @@ const App: React.FC = () => {
                 {activeTab === 'matching' && '排程规划'}
                 {activeTab === 'monitor' && '资产负载轴'}
                 {activeTab === 'reports' && '效能看板'}
-                {activeTab === 'deploy' && 'D1 数据结构'}
+                {activeTab === 'deploy' && 'D1 数据结构控制台'}
                 {activeTab === 'drivers' && '司机管理'}
                 {activeTab === 'vehicles' && '车辆管理'}
               </h1>
@@ -277,21 +315,105 @@ const App: React.FC = () => {
           {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={generateStats(drivers)} onUpdateDriver={async (d) => {setDrivers(prev => prev.map(old => old.id === d.id ? d : old)); await storage.syncSingle('drivers', d);}} onAddDriver={async (d) => {setDrivers(prev => [...prev, d]); await storage.syncSingle('drivers', d);}} onDeleteDriver={async (id) => {setDrivers(prev => prev.filter(d => d.id !== id)); await storage.deleteResource('drivers', id);}} />}
           {activeTab === 'vehicles' && <VehicleManagement vehicles={vehicles} onUpdateVehicle={async (v) => {setVehicles(prev => prev.map(old => old.id === v.id ? v : old)); await storage.syncSingle('vehicles', v);}} onAddVehicle={async (v) => {setVehicles(prev => [...prev, v]); await storage.syncSingle('vehicles', v);}} onDeleteVehicle={async (id) => {setVehicles(prev => prev.filter(v => v.id !== id)); await storage.deleteResource('vehicles', id);}} />}
           {activeTab === 'reports' && <PerformanceReport stats={generateStats(drivers)} tasks={tasks} />}
+          
+          {/* 核心修改区域: Deploy Tab */}
           {activeTab === 'deploy' && (
-            <div className="max-w-4xl mx-auto space-y-10">
-              <div className="bg-slate-900 rounded-[40px] p-12 shadow-2xl border-[10px] border-slate-800">
-                 <div className="flex items-center justify-between mb-10">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-xl"><Code className="w-8 h-8" /></div>
-                      <h3 className="text-white text-2xl font-black italic uppercase tracking-tighter">全量底表重塑脚本 (v3.1)</h3>
+            <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="bg-slate-900 rounded-[40px] p-12 shadow-2xl border-[10px] border-slate-800 text-white">
+                 <div className="flex items-center gap-4 mb-10">
+                    <div className="w-16 h-16 bg-indigo-500 rounded-3xl flex items-center justify-center text-white shadow-xl ring-4 ring-indigo-500/20">
+                       <Terminal className="w-8 h-8" />
                     </div>
-                    <button onClick={() => {navigator.clipboard.writeText(schemaSQL); alert('SQL 已复制到剪贴板');}} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl transition-all border border-white/5">
-                      <Copy className="w-4 h-4 text-indigo-400" />
-                      <span className="text-[10px] font-black text-white uppercase tracking-widest">复制 SQL</span>
+                    <div>
+                      <h3 className="text-3xl font-black italic uppercase tracking-tighter">D1 数据库指引</h3>
+                      <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-[0.2em] mt-1">SQL Command Generator</p>
+                    </div>
+                 </div>
+
+                 {/* Sub-Tab Navigation */}
+                 <div className="flex flex-wrap gap-4 mb-10 bg-black/30 p-2 rounded-2xl border border-white/5 w-fit">
+                    <button 
+                      onClick={() => setDeploySubTab('format')}
+                      className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${deploySubTab === 'format' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                    >
+                      <Trash2 className="w-4 h-4" /> 格式化全部底表
+                    </button>
+                    <button 
+                      onClick={() => setDeploySubTab('performance')}
+                      className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${deploySubTab === 'performance' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                    >
+                      <Search className="w-4 h-4" /> 司机绩效 Review
+                    </button>
+                    <button 
+                      onClick={() => setDeploySubTab('asset')}
+                      className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${deploySubTab === 'asset' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                    >
+                      <Table2 className="w-4 h-4" /> 资产 Review
                     </button>
                  </div>
-                 <div className="bg-black/50 p-8 rounded-3xl font-mono text-[11px] text-indigo-300 border border-white/5 leading-relaxed overflow-x-auto shadow-inner">
-                   <pre>{schemaSQL}</pre>
+                 
+                 {/* Sub-Tab Content */}
+                 <div className="space-y-6">
+                    {deploySubTab === 'format' && (
+                      <div className="animate-in fade-in zoom-in-95 duration-300 space-y-6">
+                        <div className="bg-black/50 p-6 rounded-3xl border border-white/5 shadow-inner">
+                           <div className="flex justify-between items-center mb-4">
+                              <span className="text-xs font-bold text-rose-400 uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                                删除表结构 (Drop Table)
+                              </span>
+                              <button onClick={() => copyToClipboard(dropSQL)} className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors"><Copy className="w-3 h-3" /> 复制</button>
+                           </div>
+                           <pre className="font-mono text-[11px] text-rose-300 leading-relaxed overflow-x-auto">{dropSQL.trim()}</pre>
+                        </div>
+                        
+                        <div className="bg-black/50 p-6 rounded-3xl border border-white/5 shadow-inner">
+                           <div className="flex justify-between items-center mb-4">
+                              <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                重建表结构 (Create Schema)
+                              </span>
+                              <button onClick={() => copyToClipboard(schemaSQL)} className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors"><Copy className="w-3 h-3" /> 复制</button>
+                           </div>
+                           <pre className="font-mono text-[11px] text-emerald-300 leading-relaxed overflow-x-auto max-h-[300px]">{schemaSQL.trim()}</pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {deploySubTab === 'performance' && (
+                      <div className="animate-in fade-in zoom-in-95 duration-300">
+                        <div className="bg-black/50 p-8 rounded-3xl border border-white/5 shadow-inner relative overflow-hidden">
+                           <div className="absolute top-0 right-0 p-4 opacity-10"><BarChart3 className="w-32 h-32 text-indigo-500" /></div>
+                           <div className="flex justify-between items-center mb-6 relative z-10">
+                              <div className="space-y-1">
+                                <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                                  任务计数 & 工时查询 (Performance Query)
+                                </span>
+                                <p className="text-[10px] text-slate-500">用于核对指定时间段内特定司机的完单总数及累计出勤小时</p>
+                              </div>
+                              <button onClick={() => copyToClipboard(performanceReviewSQL)} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase text-white flex items-center gap-2 transition-all"><Copy className="w-3 h-3" /> 复制 SQL</button>
+                           </div>
+                           <pre className="font-mono text-xs text-indigo-200 leading-relaxed overflow-x-auto relative z-10">{performanceReviewSQL.trim()}</pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {deploySubTab === 'asset' && (
+                       <div className="animate-in fade-in zoom-in-95 duration-300">
+                         <div className="bg-black/50 p-8 rounded-3xl border border-white/5 shadow-inner relative">
+                            <div className="flex justify-between items-center mb-6">
+                               <div className="space-y-1">
+                                 <span className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                                   全量资源检视 (Select All)
+                                 </span>
+                                 <p className="text-[10px] text-slate-500">用于导出当前数据库中所有活跃的人力和资产</p>
+                               </div>
+                               <button onClick={() => copyToClipboard(assetReviewSQL)} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase text-white flex items-center gap-2 transition-all"><Copy className="w-3 h-3" /> 复制 SQL</button>
+                            </div>
+                            <pre className="font-mono text-xs text-amber-200 leading-relaxed overflow-x-auto">{assetReviewSQL.trim()}</pre>
+                         </div>
+                       </div>
+                    )}
                  </div>
               </div>
             </div>
