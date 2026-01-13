@@ -2,44 +2,35 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { DriverStats, Task } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { BarChart3, TrendingUp, Calendar, ChevronRight, Filter, RefreshCcw } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, ChevronRight, Filter, RefreshCcw, CalendarCheck, CalendarRange } from 'lucide-react';
 
 interface Props {
   stats: DriverStats[];
   tasks: Task[];
   selectedDate: string; // 全局选中的单日
+  onDateChange?: (date: string) => void; // 回调更新全局日期
   onModeChange?: (isRangeMode: boolean) => void; // 通知父组件当前模式
 }
 
-const PerformanceReport: React.FC<Props> = ({ stats, tasks, selectedDate, onModeChange }) => {
+const PerformanceReport: React.FC<Props> = ({ stats, tasks, selectedDate, onDateChange, onModeChange }) => {
   // 获取今日日期字符串
   const today = new Date().toISOString().split('T')[0];
   // 计算一周前的日期
   const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  // 状态：筛选模式 'SINGLE' (跟随全局) 或 'RANGE' (自定义区间)
+  // 状态：筛选模式 'SINGLE' (单日) 或 'RANGE' (区间)
   const [filterMode, setFilterMode] = useState<'SINGLE' | 'RANGE'>('SINGLE');
   
   // 状态：日期范围选择
   const [startDate, setStartDate] = useState(lastWeek);
   const [endDate, setEndDate] = useState(today);
 
-  // 当全局日期变化时，自动重置为单日模式
-  useEffect(() => {
-    setFilterMode('SINGLE');
-  }, [selectedDate]);
-
-  // 当模式变化时，通知父组件（用于模糊顶部日期选择器）
+  // 当模式变化时，通知父组件
   useEffect(() => {
     if (onModeChange) {
       onModeChange(filterMode === 'RANGE');
     }
   }, [filterMode, onModeChange]);
-
-  // 切换到区间模式
-  const handleRangeInteract = () => {
-    setFilterMode('RANGE');
-  };
 
   // 核心逻辑调整：根据模式和日期范围过滤任务，并计算完成单量
   const reportData = useMemo(() => {
@@ -96,61 +87,100 @@ const PerformanceReport: React.FC<Props> = ({ stats, tasks, selectedDate, onMode
     return null;
   };
 
+  const isSingle = filterMode === 'SINGLE';
+  const isRange = filterMode === 'RANGE';
+
   return (
     <div className="bg-white rounded-[48px] shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden animate-in fade-in duration-700">
-      <div className="p-8 border-b border-slate-50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl">
-            <BarChart3 className="w-6 h-6 text-emerald-400" />
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-slate-800 italic uppercase tracking-tighter">
-              司机调度效能看板
-            </h2>
-            <div className="flex items-center gap-2 mt-0.5">
-               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${filterMode === 'SINGLE' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
-                 {filterMode === 'SINGLE' ? '单日视图' : '聚合视图'}
-               </span>
-               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                 任务指派即计入完成度
-               </p>
+      
+      {/* 顶部控制区：双核模式切换 */}
+      <div className="p-8 border-b border-slate-50 bg-white">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl">
+              <BarChart3 className="w-6 h-6 text-emerald-400" />
             </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-800 italic uppercase tracking-tighter">
+                司机调度效能看板
+              </h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${isSingle ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'}`}>
+                   {isSingle ? '单日透视模式' : '区间聚合模式'}
+                 </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="text-right">
+             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                当前统计范围
+             </div>
+             <div className="text-lg font-black text-slate-800 italic font-mono">
+                {isSingle ? selectedDate : `${startDate} → ${endDate}`}
+             </div>
           </div>
         </div>
 
-        {/* 日期选择器控制组 - 增加视觉模糊逻辑 */}
-        <div 
-          onClick={handleRangeInteract}
-          className={`flex items-center gap-3 bg-slate-900 p-2.5 rounded-[24px] shadow-2xl border border-slate-800 transition-all duration-300 ${filterMode === 'SINGLE' ? 'opacity-60 blur-[1px] hover:opacity-100 hover:blur-0 cursor-pointer scale-95' : 'scale-100'}`}
-        >
-           <div className="flex items-center gap-3 px-3">
-              <Filter className={`w-3.5 h-3.5 ${filterMode === 'RANGE' ? 'text-indigo-400' : 'text-slate-500'}`} />
-              <span className={`text-[9px] font-black uppercase tracking-widest ${filterMode === 'RANGE' ? 'text-white' : 'text-slate-500'}`}>区间筛选</span>
+        {/* 核心交互区域：双日期选择模块 */}
+        <div className="flex gap-4 p-2 bg-slate-50 rounded-[32px] border border-slate-100">
+           
+           {/* 模块 A: 单日选择器 */}
+           <div 
+             onMouseEnter={() => setFilterMode('SINGLE')}
+             onClick={() => setFilterMode('SINGLE')}
+             className={`flex-1 p-4 rounded-[24px] border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-2 group ${
+               isSingle 
+                ? 'bg-slate-900 border-slate-800 shadow-2xl scale-[1.02] z-10' 
+                : 'bg-white border-slate-100 opacity-60 blur-[1px] grayscale-[0.5] hover:opacity-100 hover:blur-0 hover:grayscale-0'
+             }`}
+           >
+              <div className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${isSingle ? 'text-indigo-400' : 'text-slate-400'}`}>
+                 <div className="flex items-center gap-2"><CalendarCheck className="w-3 h-3" /> 单日数据检视</div>
+              </div>
+              <div className={`relative px-4 py-2 rounded-xl flex items-center gap-3 border ${isSingle ? 'bg-white/10 border-white/10' : 'bg-slate-50 border-slate-100'}`}>
+                 <input 
+                   type="date" 
+                   value={selectedDate} 
+                   onChange={(e) => { 
+                     if(onDateChange) onDateChange(e.target.value); 
+                     setFilterMode('SINGLE'); 
+                   }} 
+                   className={`bg-transparent text-sm font-black outline-none uppercase cursor-pointer ${isSingle ? 'text-white' : 'text-slate-700'}`}
+                 />
+              </div>
            </div>
-           <div className="flex items-center bg-white/5 rounded-xl border border-white/5 overflow-hidden">
-             <input 
-               type="date" 
-               value={startDate} 
-               onChange={(e) => { setStartDate(e.target.value); handleRangeInteract(); }}
-               className="bg-transparent text-white text-[10px] font-black px-4 py-2 outline-none border-none uppercase hover:bg-white/10 transition-colors cursor-pointer"
-             />
-             <div className="w-px h-4 bg-white/10" />
-             <input 
-               type="date" 
-               value={endDate} 
-               onChange={(e) => { setEndDate(e.target.value); handleRangeInteract(); }}
-               className="bg-transparent text-white text-[10px] font-black px-4 py-2 outline-none border-none uppercase hover:bg-white/10 transition-colors cursor-pointer"
-             />
+
+           {/* 模块 B: 区间选择器 */}
+           <div 
+             onMouseEnter={() => setFilterMode('RANGE')}
+             onClick={() => setFilterMode('RANGE')}
+             className={`flex-1 p-4 rounded-[24px] border transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-2 group ${
+               isRange 
+                ? 'bg-slate-900 border-slate-800 shadow-2xl scale-[1.02] z-10' 
+                : 'bg-white border-slate-100 opacity-60 blur-[1px] grayscale-[0.5] hover:opacity-100 hover:blur-0 hover:grayscale-0'
+             }`}
+           >
+              <div className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${isRange ? 'text-amber-400' : 'text-slate-400'}`}>
+                 <div className="flex items-center gap-2"><CalendarRange className="w-3 h-3" /> 时间段聚合分析</div>
+              </div>
+              <div className={`relative px-4 py-2 rounded-xl flex items-center gap-2 border ${isRange ? 'bg-white/10 border-white/10' : 'bg-slate-50 border-slate-100'}`}>
+                 <input 
+                   type="date" 
+                   value={startDate} 
+                   onChange={(e) => { setStartDate(e.target.value); setFilterMode('RANGE'); }} 
+                   className={`bg-transparent text-[10px] font-black outline-none uppercase cursor-pointer w-24 ${isRange ? 'text-white' : 'text-slate-700'}`}
+                 />
+                 <span className={isRange ? 'text-slate-500' : 'text-slate-300'}>-</span>
+                 <input 
+                   type="date" 
+                   value={endDate} 
+                   onChange={(e) => { setEndDate(e.target.value); setFilterMode('RANGE'); }} 
+                   className={`bg-transparent text-[10px] font-black outline-none uppercase cursor-pointer w-24 ${isRange ? 'text-white' : 'text-slate-700'}`}
+                 />
+              </div>
            </div>
-           {filterMode === 'RANGE' && (
-             <button 
-               onClick={(e) => { e.stopPropagation(); setFilterMode('SINGLE'); }}
-               className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
-               title="重置回单日模式"
-             >
-                <RefreshCcw className="w-3 h-3" />
-             </button>
-           )}
+
         </div>
       </div>
 

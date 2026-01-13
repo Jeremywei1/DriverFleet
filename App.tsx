@@ -113,7 +113,7 @@ const App: React.FC = () => {
   // Deploy Tab 的子状态
   const [deploySubTab, setDeploySubTab] = useState<'format' | 'performance' | 'asset'>('format');
   
-  // 效能看板：是否处于区间筛选模式（用于模糊全局日期选择器）
+  // 效能看板：是否处于区间筛选模式（此状态现在主要由 PerformanceReport 内部接管，父组件仅作为 pass-through 或保留备用）
   const [isReportRangeMode, setIsReportRangeMode] = useState(false);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -262,18 +262,20 @@ const App: React.FC = () => {
               {isRefreshing && <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1 rounded-full animate-pulse"><Loader2 className="w-3 h-3 text-indigo-600 animate-spin" /><span className="text-[9px] font-black text-indigo-600 uppercase">刷新中...</span></div>}
            </div>
 
-           {/* 顶部全局日期选择器：增加 blur 效果 */}
-           <div className={`flex items-center bg-slate-100 p-1.5 rounded-[20px] gap-2 border border-slate-200 transition-all duration-300 ${isReportRangeMode && activeTab === 'reports' ? 'opacity-30 blur-sm pointer-events-none' : 'opacity-100'}`}>
-              <button onClick={() => changeDateByOffset(-1)} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><ChevronLeft className="w-4 h-4" /></button>
-              <div className="relative group px-4 py-1.5 flex items-center gap-3 bg-white shadow-sm rounded-xl border border-slate-100">
-                 <CalendarIcon className="w-4 h-4 text-indigo-500" />
-                 <input 
-                   type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} 
-                   className="text-sm font-black text-slate-700 bg-transparent outline-none cursor-pointer uppercase tracking-tighter"
-                 />
-              </div>
-              <button onClick={() => changeDateByOffset(1)} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><ChevronRight className="w-4 h-4" /></button>
-           </div>
+           {/* 顶部全局日期选择器：当处于 Reports Tab 时隐藏，因为 Reports 内部有更强大的选择器 */}
+           {activeTab !== 'reports' && (
+             <div className="flex items-center bg-slate-100 p-1.5 rounded-[20px] gap-2 border border-slate-200 transition-all animate-in fade-in">
+                <button onClick={() => changeDateByOffset(-1)} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                <div className="relative group px-4 py-1.5 flex items-center gap-3 bg-white shadow-sm rounded-xl border border-slate-100">
+                   <CalendarIcon className="w-4 h-4 text-indigo-500" />
+                   <input 
+                     type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} 
+                     className="text-sm font-black text-slate-700 bg-transparent outline-none cursor-pointer uppercase tracking-tighter"
+                   />
+                </div>
+                <button onClick={() => changeDateByOffset(1)} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><ChevronRight className="w-4 h-4" /></button>
+             </div>
+           )}
         </header>
 
         <div className="flex-1 overflow-auto p-8 bg-slate-50/50 scrollbar-hide">
@@ -324,8 +326,8 @@ const App: React.FC = () => {
           {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={generateStats(drivers)} onUpdateDriver={async (d) => {setDrivers(prev => prev.map(old => old.id === d.id ? d : old)); await storage.syncSingle('drivers', d);}} onAddDriver={async (d) => {setDrivers(prev => [...prev, d]); await storage.syncSingle('drivers', d);}} onDeleteDriver={async (id) => {setDrivers(prev => prev.filter(d => d.id !== id)); await storage.deleteResource('drivers', id);}} />}
           {activeTab === 'vehicles' && <VehicleManagement vehicles={vehicles} onUpdateVehicle={async (v) => {setVehicles(prev => prev.map(old => old.id === v.id ? v : old)); await storage.syncSingle('vehicles', v);}} onAddVehicle={async (v) => {setVehicles(prev => [...prev, v]); await storage.syncSingle('vehicles', v);}} onDeleteVehicle={async (id) => {setVehicles(prev => prev.filter(v => v.id !== id)); await storage.deleteResource('vehicles', id);}} />}
           
-          {/* 更新 PerformanceReport Props */}
-          {activeTab === 'reports' && <PerformanceReport stats={generateStats(drivers)} tasks={tasks} selectedDate={currentDate} onModeChange={setIsReportRangeMode} />}
+          {/* 更新 PerformanceReport Props，传入 onDateChange 用于内部控制全局日期 */}
+          {activeTab === 'reports' && <PerformanceReport stats={generateStats(drivers)} tasks={tasks} selectedDate={currentDate} onDateChange={setCurrentDate} onModeChange={setIsReportRangeMode} />}
           
           {/* 核心修改区域: Deploy Tab */}
           {activeTab === 'deploy' && (
