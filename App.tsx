@@ -19,7 +19,7 @@ import {
 import { Driver, Vehicle, Task } from './types';
 
 const schemaSQL = `
--- Fleet Pro D1 Schema (v3.2) - 建表语句 (已包含冗余字段与备注)
+-- Fleet Pro D1 Schema (v5.0 Strategy Edition) - 资产战略版
 CREATE TABLE IF NOT EXISTS drivers (
   id TEXT PRIMARY KEY, name TEXT, gender TEXT, phone TEXT, joinDate TEXT, experience_years INTEGER,
   isActive INTEGER DEFAULT 1, currentStatus TEXT DEFAULT 'FREE', coord_x REAL DEFAULT 0,
@@ -33,7 +33,12 @@ CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, vehicleId TEXT, status TEXT,
   startTime TEXT, endTime TEXT, locationStart TEXT, locationEnd TEXT, distanceKm REAL,
   priority TEXT, operation_timestamp TEXT,
-  driverName TEXT, vehiclePlate TEXT, notes TEXT
+  driverName TEXT, vehiclePlate TEXT, notes TEXT,
+  revenue REAL DEFAULT 0,
+  taskType TEXT DEFAULT 'PASSENGER',
+  score REAL DEFAULT 0,
+  vehicleType TEXT,  -- [新增] 车型快照 (Sedan/Van/Truck)
+  vehicleSeats INTEGER -- [新增] 座位数快照
 );
 `;
 
@@ -45,28 +50,33 @@ DROP TABLE IF EXISTS tasks;
 `;
 
 const performanceReviewSQL = `
--- 查询特定司机在指定日期范围内的任务量及出勤工时
+-- 财务视角：查询司机产出比 (Revenue per Driver)
 SELECT 
   driverId, 
-  driverName,                          -- [新增] 直接显示司机姓名
-  COUNT(*) as total_tasks,             -- 总单量
-  SUM(distanceKm) as total_distance,   -- 总里程 (KM)
-  -- 计算累计工时：(结束时间 - 开始时间) * 24小时，保留1位小数
-  ROUND(SUM((julianday(endTime) - julianday(startTime)) * 24), 1) as total_hours
+  driverName,
+  COUNT(*) as total_tasks,
+  SUM(revenue) as total_revenue,       -- 总营收
+  AVG(score) as avg_score,             -- 平均服务分
+  SUM(distanceKm) as total_distance
 FROM tasks 
 WHERE 
-  driverId = 'd-123'         -- [参数] 替换为实际 Driver ID
-  AND date >= '2024-01-01'   -- [参数] 起始日期
-  AND date <= '2024-01-31'   -- [参数] 结束日期
-GROUP BY driverId, driverName;
+  date >= '2024-01-01' 
+  AND status = 'COMPLETED'
+GROUP BY driverId, driverName
+ORDER BY total_revenue DESC;           -- 按创收排序
 `;
 
 const assetReviewSQL = `
--- 1. 检视全量司机档案
-SELECT id, name, phone, currentStatus, rating FROM drivers ORDER BY joinDate DESC;
-
--- 2. 检视全量车辆资产
-SELECT id, plateNumber, model, type, isActive FROM vehicles ORDER BY id ASC;
+-- 战略视角：哪种车型最赚钱？
+SELECT 
+  vehicleType, 
+  vehicleSeats,
+  COUNT(*) as demand_count,
+  SUM(revenue) as total_revenue
+FROM tasks
+WHERE status = 'COMPLETED'
+GROUP BY vehicleType, vehicleSeats
+ORDER BY total_revenue DESC;
 `;
 
 const LoginGate: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
@@ -115,7 +125,7 @@ const App: React.FC = () => {
   // Deploy Tab 的子状态
   const [deploySubTab, setDeploySubTab] = useState<'format' | 'performance' | 'asset'>('format');
   
-  // 效能看板：是否处于区间筛选模式（此状态现在主要由 PerformanceReport 内部接管，父组件仅作为 pass-through 或保留备用）
+  // 效能看板：是否处于区间筛选模式
   const [isReportRangeMode, setIsReportRangeMode] = useState(false);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -170,6 +180,11 @@ const App: React.FC = () => {
       driverName: partialTask.driverName || '未知司机',
       vehicleId: partialTask.vehicleId || null,
       vehiclePlate: partialTask.vehiclePlate || '未知车辆',
+      
+      // 关键：确保快照被保存
+      vehicleType: partialTask.vehicleType,
+      vehicleSeats: partialTask.vehicleSeats,
+
       status: 'IN_PROGRESS', 
       startTime: partialTask.startTime || new Date().toISOString(),
       endTime: partialTask.endTime || new Date().toISOString(),
@@ -179,14 +194,16 @@ const App: React.FC = () => {
       priority: partialTask.priority || 'MEDIUM',
       date: partialTask.date || currentDate,
       operation_timestamp: ts,
-      notes: partialTask.notes || ''
+      notes: partialTask.notes || '',
+      revenue: partialTask.revenue || 0,
+      taskType: partialTask.taskType || 'PASSENGER',
+      score: 0
     };
     if (newTask.date === currentDate) setTasks(prev => [newTask, ...prev]);
     setTaskCache(prev => ({ ...prev, [newTask.date]: [newTask, ...(prev[newTask.date] || [])] }));
     await storage.syncSingle('tasks', newTask);
-    // 移除跳转：让用户停留在当前 MatchingCenter 页面
-    // setActiveTab('dashboard'); 
-    alert('任务创建成功！您可以继续创建下一条任务。');
+    
+    alert('任务已派发！资产数据快照已锁定。');
   }, [currentDate]);
 
   const handleDeleteTask = useCallback(async (id: string, date: string) => {
@@ -267,7 +284,7 @@ const App: React.FC = () => {
               {isRefreshing && <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1 rounded-full animate-pulse"><Loader2 className="w-3 h-3 text-indigo-600 animate-spin" /><span className="text-[9px] font-black text-indigo-600 uppercase">刷新中...</span></div>}
            </div>
 
-           {/* 顶部全局日期选择器：当处于 Reports Tab 时隐藏，因为 Reports 内部有更强大的选择器 */}
+           {/* 顶部全局日期选择器 */}
            {activeTab !== 'reports' && (
              <div className="flex items-center bg-slate-100 p-1.5 rounded-[20px] gap-2 border border-slate-200 transition-all animate-in fade-in">
                 <button onClick={() => changeDateByOffset(-1)} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><ChevronLeft className="w-4 h-4" /></button>
@@ -283,7 +300,8 @@ const App: React.FC = () => {
            )}
         </header>
 
-        <div className="flex-1 overflow-auto p-8 bg-slate-50/50 scrollbar-hide">
+        {/* 修复：增加 flex flex-col 以防止子组件 h-full 高度塌陷 */}
+        <div className="flex-1 overflow-auto p-8 bg-slate-50/50 scrollbar-hide flex flex-col">
           {activeTab === 'dashboard' && (
             <div className={`space-y-10 animate-in fade-in duration-500 ${isRefreshing && tasks.length === 0 ? 'opacity-50 blur-sm' : ''}`}>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -291,7 +309,7 @@ const App: React.FC = () => {
                    { label: `${currentDate} 任务量`, val: tasks.length, icon: ClipboardList },
                    { label: '在册人力', val: drivers.length, icon: Users },
                    { label: '资产规模', val: vehicles.length, icon: Car },
-                   { label: '平均负载率', val: '84%', icon: Activity }
+                   { label: '日预估营收', val: `¥${tasks.reduce((sum, t) => sum + (t.revenue || 0), 0).toLocaleString()}`, icon: Activity }
                  ].map((s, i) => (
                    <div key={i} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
                       <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 text-indigo-500"><s.icon className="w-6 h-6" /></div>
@@ -314,7 +332,6 @@ const App: React.FC = () => {
             </div>
           )}
           
-          {/* 传递 tasks 给 MatchingCenter */}
           {activeTab === 'matching' && <MatchingCenter drivers={drivers} vehicles={vehicles} tasks={tasks} driverSchedules={[]} vehicleSchedules={[]} onCreateTask={handleCreateTask} currentDate={currentDate} onDateChange={setCurrentDate} />}
           
           {activeTab === 'monitor' && (
@@ -331,10 +348,8 @@ const App: React.FC = () => {
           {activeTab === 'drivers' && <DriverManagement drivers={drivers} stats={generateStats(drivers)} onUpdateDriver={async (d) => {setDrivers(prev => prev.map(old => old.id === d.id ? d : old)); await storage.syncSingle('drivers', d);}} onAddDriver={async (d) => {setDrivers(prev => [...prev, d]); await storage.syncSingle('drivers', d);}} onDeleteDriver={async (id) => {setDrivers(prev => prev.filter(d => d.id !== id)); await storage.deleteResource('drivers', id);}} />}
           {activeTab === 'vehicles' && <VehicleManagement vehicles={vehicles} onUpdateVehicle={async (v) => {setVehicles(prev => prev.map(old => old.id === v.id ? v : old)); await storage.syncSingle('vehicles', v);}} onAddVehicle={async (v) => {setVehicles(prev => [...prev, v]); await storage.syncSingle('vehicles', v);}} onDeleteVehicle={async (id) => {setVehicles(prev => prev.filter(v => v.id !== id)); await storage.deleteResource('vehicles', id);}} />}
           
-          {/* 更新 PerformanceReport Props，传入 onDateChange 用于内部控制全局日期 */}
           {activeTab === 'reports' && <PerformanceReport stats={generateStats(drivers)} tasks={tasks} selectedDate={currentDate} onDateChange={setCurrentDate} onModeChange={setIsReportRangeMode} />}
           
-          {/* 核心修改区域: Deploy Tab */}
           {activeTab === 'deploy' && (
             <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
               <div className="bg-slate-900 rounded-[40px] p-12 shadow-2xl border-[10px] border-slate-800 text-white">
@@ -360,7 +375,7 @@ const App: React.FC = () => {
                       onClick={() => setDeploySubTab('performance')}
                       className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${deploySubTab === 'performance' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
                     >
-                      <Search className="w-4 h-4" /> 司机绩效 Review
+                      <Search className="w-4 h-4" /> 财务绩效 Review
                     </button>
                     <button 
                       onClick={() => setDeploySubTab('asset')}
@@ -405,9 +420,9 @@ const App: React.FC = () => {
                            <div className="flex justify-between items-center mb-6 relative z-10">
                               <div className="space-y-1">
                                 <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                                  任务计数 & 工时查询 (Performance Query)
+                                  财务/营收查询 (Finance & Revenue Query)
                                 </span>
-                                <p className="text-[10px] text-slate-500">用于核对指定时间段内特定司机的完单总数及累计出勤小时</p>
+                                <p className="text-[10px] text-slate-500">用于核对指定时间段内特定司机的完单总数及累计营收</p>
                               </div>
                               <button onClick={() => copyToClipboard(performanceReviewSQL)} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase text-white flex items-center gap-2 transition-all"><Copy className="w-3 h-3" /> 复制 SQL</button>
                            </div>
@@ -422,9 +437,9 @@ const App: React.FC = () => {
                             <div className="flex justify-between items-center mb-6">
                                <div className="space-y-1">
                                  <span className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
-                                   全量资源检视 (Select All)
+                                   战略资产分析 (Asset Strategy)
                                  </span>
-                                 <p className="text-[10px] text-slate-500">用于导出当前数据库中所有活跃的人力和资产</p>
+                                 <p className="text-[10px] text-slate-500">用于导出按车型(Type)和座位数(Seats)分组的需求统计，辅助采购决策</p>
                                </div>
                                <button onClick={() => copyToClipboard(assetReviewSQL)} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase text-white flex items-center gap-2 transition-all"><Copy className="w-3 h-3" /> 复制 SQL</button>
                             </div>

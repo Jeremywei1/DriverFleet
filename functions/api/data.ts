@@ -83,7 +83,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     
     if (safeTable === 'drivers') {
       for (const item of items) {
-        // 明确将性别 (gender) 绑定到 SQL 语句中
         await context.env.DB.prepare(`
           INSERT OR REPLACE INTO drivers (
             id, name, gender, phone, joinDate, experience_years, 
@@ -92,7 +91,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         `).bind(
           wash(item.id, 'string'),
           wash(item.name, 'string', '新司机'),
-          wash(item.gender, 'string', 'Male'), // 确保 gender 被正确写入
+          wash(item.gender, 'string', 'Male'), 
           wash(item.phone, 'string', ''),
           wash(item.joinDate, 'string', new Date().toISOString().split('T')[0]),
           wash(item.experience_years, 'number', 0),
@@ -126,12 +125,14 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       }
     } else if (safeTable === 'tasks') {
       for (const item of items) {
+        // 更新：绑定 revenue, taskType, score, vehicleType, vehicleSeats
         await context.env.DB.prepare(`
           INSERT OR REPLACE INTO tasks (
             id, date, title, driverId, vehicleId, status, startTime, endTime, 
             locationStart, locationEnd, distanceKm, priority, operation_timestamp,
-            driverName, vehiclePlate, notes
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            driverName, vehiclePlate, notes, revenue, taskType, score,
+            vehicleType, vehicleSeats
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           wash(item.id, 'string'),
           wash(item.date, 'string'),
@@ -146,9 +147,14 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           wash(item.distanceKm, 'number', 0),
           wash(item.priority, 'string', 'MEDIUM'),
           opTs,
-          wash(item.driverName, 'string', '未知司机'), // 新增字段绑定
-          wash(item.vehiclePlate, 'string', '未知车辆'), // 新增字段绑定
-          wash(item.notes, 'string', '') // 新增字段绑定
+          wash(item.driverName, 'string', '未知司机'),
+          wash(item.vehiclePlate, 'string', '未知车辆'),
+          wash(item.notes, 'string', ''),
+          wash(item.revenue, 'number', 0),
+          wash(item.taskType, 'string', 'PASSENGER'),
+          wash(item.score, 'number', 0),
+          wash(item.vehicleType, 'string', 'Unknown'), // 新增
+          wash(item.vehicleSeats, 'number', 0)         // 新增
         ).run();
       }
     }

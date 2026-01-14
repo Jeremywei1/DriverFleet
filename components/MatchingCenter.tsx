@@ -4,7 +4,7 @@ import { Driver, Vehicle, DriverStatus, Task, DriverSchedule, VehicleSchedule } 
 import { 
   Zap, Clock, MapPin, CheckCircle2, Calendar, Sparkles, PlusCircle,
   Timer, Info, ChevronRight, Car, AlertCircle, Layers,
-  ChevronLeft, FileText
+  ChevronLeft, FileText, Banknote
 } from 'lucide-react';
 
 interface Props {
@@ -37,6 +37,7 @@ const MatchingCenter: React.FC<Props> = ({
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [notes, setNotes] = useState(''); // 新增：备注状态
+  const [revenue, setRevenue] = useState(''); // 新增：金额
 
   // 辅助函数：判断司机在特定时间片是否忙碌 (基于真实 Tasks 数据)
   const isDriverBusyAtSlot = (driverId: string, slotIdx: number, date: string) => {
@@ -133,6 +134,11 @@ const MatchingCenter: React.FC<Props> = ({
       driverName: driverObj?.name || '未知司机', // 传递司机姓名
       vehicleId: selectedVehicleId,
       vehiclePlate: vehicleObj?.plateNumber || '未知车牌', // 传递车牌号
+      
+      // 关键：传递车辆类型和座位数，形成快照
+      vehicleType: vehicleObj?.type,
+      vehicleSeats: vehicleObj?.seats,
+
       startTime,
       endTime,
       locationStart: from,
@@ -140,10 +146,12 @@ const MatchingCenter: React.FC<Props> = ({
       priority: isMultiDay ? 'HIGH' : 'MEDIUM',
       status: 'IN_PROGRESS',
       date: currentDate,
-      notes: notes // 传递备注
+      notes: notes,
+      revenue: Number(revenue) || 0, // 传递金额
+      taskType: 'PASSENGER'
     });
 
-    setFrom(''); setTo(''); setSelectedDriverId(''); setSelectedVehicleId(''); setNotes('');
+    setFrom(''); setTo(''); setSelectedDriverId(''); setSelectedVehicleId(''); setNotes(''); setRevenue('');
   };
 
   const formatIdxToTime = (idx: number) => {
@@ -325,7 +333,7 @@ const MatchingCenter: React.FC<Props> = ({
                     <div className="relative">
                       <select value={selectedVehicleId} onChange={(e) => setSelectedVehicleId(e.target.value)} className="w-full bg-white/5 border border-white/10 p-3.5 rounded-xl font-black text-sm appearance-none text-white outline-none focus:border-indigo-500">
                         <option value="" className="text-slate-900">🚚 选择可用车辆 ({availableVehicles.length})</option>
-                        {availableVehicles.map(v => <option key={v.id} value={v.id} className="text-slate-900">{v.plateNumber}</option>)}
+                        {availableVehicles.map(v => <option key={v.id} value={v.id} className="text-slate-900">{v.plateNumber} ({v.type} - {v.seats}座)</option>)}
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-40"><ChevronRight className="w-4 h-4" /></div>
                     </div>
@@ -343,8 +351,24 @@ const MatchingCenter: React.FC<Props> = ({
                   <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="目标终点..." className="bg-transparent text-xs font-black w-full text-white outline-none placeholder:text-slate-700" />
                 </div>
               </div>
+              
+              {/* 金额输入 (Revenue) */}
+              <div className="pt-2 space-y-1.5">
+                 <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest px-1 flex items-center gap-1">
+                   <Banknote className="w-3 h-3" /> 预估运费 (营收)
+                 </label>
+                 <div className="relative">
+                   <input 
+                     type="number" 
+                     value={revenue} 
+                     onChange={(e) => setRevenue(e.target.value)}
+                     placeholder="¥ 0.00"
+                     className="w-full bg-black/40 border border-amber-500/20 p-3.5 rounded-xl font-black text-sm text-amber-400 outline-none focus:border-amber-500/50 transition-all placeholder:text-slate-700"
+                   />
+                 </div>
+              </div>
 
-              {/* 新增：任务备注输入区 */}
+              {/* 任务备注输入区 */}
               <div className="space-y-1.5 pt-2">
                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 flex items-center gap-1">
                    <FileText className="w-3 h-3" /> 任务备注 / 客人信息

@@ -40,9 +40,14 @@ export interface Task {
   date: string;
   title: string;
   driverId: string | null;
-  driverName?: string; // 新增：冗余存储司机姓名，方便报表
+  driverName?: string; // 冗余存储司机姓名
   vehicleId: string | null;
-  vehiclePlate?: string; // 新增：冗余存储车牌，方便报表
+  vehiclePlate?: string; // 冗余存储车牌
+  
+  // V3.0 资产战略快照 (关键！)
+  vehicleType?: 'Sedan' | 'Van' | 'Truck'; // 记录当时车型
+  vehicleSeats?: number; // 记录当时座位数
+  
   status: 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   startTime: string;
   endTime: string;
@@ -51,7 +56,12 @@ export interface Task {
   distanceKm: number;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   operation_timestamp: string;
-  notes?: string; // 新增：任务备注
+  notes?: string; 
+  
+  // V2.0 经营性字段
+  revenue?: number; 
+  taskType?: 'PASSENGER' | 'CARGO' | 'MAINTENANCE'; 
+  score?: number; 
 }
 
 export interface DriverStats {
