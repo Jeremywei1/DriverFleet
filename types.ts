@@ -40,7 +40,9 @@ export interface Task {
   date: string;
   title: string;
   driverId: string | null;
+  driverName?: string; // 新增：冗余存储司机姓名，方便报表
   vehicleId: string | null;
+  vehiclePlate?: string; // 新增：冗余存储车牌，方便报表
   status: 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   startTime: string;
   endTime: string;
@@ -49,6 +51,7 @@ export interface Task {
   distanceKm: number;
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   operation_timestamp: string;
+  notes?: string; // 新增：任务备注
 }
 
 export interface DriverStats {

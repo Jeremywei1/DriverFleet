@@ -19,7 +19,7 @@ import {
 import { Driver, Vehicle, Task } from './types';
 
 const schemaSQL = `
--- Fleet Pro D1 Schema (v3.1) - 建表语句
+-- Fleet Pro D1 Schema (v3.2) - 建表语句 (已包含冗余字段与备注)
 CREATE TABLE IF NOT EXISTS drivers (
   id TEXT PRIMARY KEY, name TEXT, gender TEXT, phone TEXT, joinDate TEXT, experience_years INTEGER,
   isActive INTEGER DEFAULT 1, currentStatus TEXT DEFAULT 'FREE', coord_x REAL DEFAULT 0,
@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS vehicles (
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY, date TEXT, title TEXT, driverId TEXT, vehicleId TEXT, status TEXT,
   startTime TEXT, endTime TEXT, locationStart TEXT, locationEnd TEXT, distanceKm REAL,
-  priority TEXT, operation_timestamp TEXT
+  priority TEXT, operation_timestamp TEXT,
+  driverName TEXT, vehiclePlate TEXT, notes TEXT
 );
 `;
 
@@ -47,6 +48,7 @@ const performanceReviewSQL = `
 -- 查询特定司机在指定日期范围内的任务量及出勤工时
 SELECT 
   driverId, 
+  driverName,                          -- [新增] 直接显示司机姓名
   COUNT(*) as total_tasks,             -- 总单量
   SUM(distanceKm) as total_distance,   -- 总里程 (KM)
   -- 计算累计工时：(结束时间 - 开始时间) * 24小时，保留1位小数
@@ -56,7 +58,7 @@ WHERE
   driverId = 'd-123'         -- [参数] 替换为实际 Driver ID
   AND date >= '2024-01-01'   -- [参数] 起始日期
   AND date <= '2024-01-31'   -- [参数] 结束日期
-GROUP BY driverId;
+GROUP BY driverId, driverName;
 `;
 
 const assetReviewSQL = `
@@ -165,7 +167,9 @@ const App: React.FC = () => {
       id: `task-${Date.now()}`,
       title: partialTask.title || '新任务',
       driverId: partialTask.driverId || null,
+      driverName: partialTask.driverName || '未知司机',
       vehicleId: partialTask.vehicleId || null,
+      vehiclePlate: partialTask.vehiclePlate || '未知车辆',
       status: 'IN_PROGRESS', 
       startTime: partialTask.startTime || new Date().toISOString(),
       endTime: partialTask.endTime || new Date().toISOString(),
@@ -174,7 +178,8 @@ const App: React.FC = () => {
       distanceKm: partialTask.distanceKm || 10,
       priority: partialTask.priority || 'MEDIUM',
       date: partialTask.date || currentDate,
-      operation_timestamp: ts
+      operation_timestamp: ts,
+      notes: partialTask.notes || ''
     };
     if (newTask.date === currentDate) setTasks(prev => [newTask, ...prev]);
     setTaskCache(prev => ({ ...prev, [newTask.date]: [newTask, ...(prev[newTask.date] || [])] }));

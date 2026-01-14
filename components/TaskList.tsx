@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Task, Driver } from '../types';
-import { MapPin, Calendar, Truck, ArrowRight, Trash2, AlertCircle, Layers } from 'lucide-react';
+import { MapPin, Calendar, Truck, ArrowRight, Trash2, AlertCircle, Layers, FileText } from 'lucide-react';
 
 interface Props {
   tasks: Task[];
@@ -115,6 +115,14 @@ const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask, selectedDate 
                       {task.locationEnd}
                    </div>
                 </div>
+                
+                {/* 新增：备注信息展示 */}
+                {task.notes && (
+                  <div className="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-100 text-amber-800/80 flex items-start gap-2">
+                     <FileText className="w-3 h-3 mt-0.5 shrink-0" />
+                     <p className="text-[10px] font-bold leading-relaxed line-clamp-2">{task.notes}</p>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center mt-2">
                   <div className="flex items-center gap-3">

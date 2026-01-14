@@ -129,8 +129,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         await context.env.DB.prepare(`
           INSERT OR REPLACE INTO tasks (
             id, date, title, driverId, vehicleId, status, startTime, endTime, 
-            locationStart, locationEnd, distanceKm, priority, operation_timestamp
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            locationStart, locationEnd, distanceKm, priority, operation_timestamp,
+            driverName, vehiclePlate, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           wash(item.id, 'string'),
           wash(item.date, 'string'),
@@ -144,7 +145,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           wash(item.locationEnd, 'string', '未知终点'),
           wash(item.distanceKm, 'number', 0),
           wash(item.priority, 'string', 'MEDIUM'),
-          opTs
+          opTs,
+          wash(item.driverName, 'string', '未知司机'), // 新增字段绑定
+          wash(item.vehiclePlate, 'string', '未知车辆'), // 新增字段绑定
+          wash(item.notes, 'string', '') // 新增字段绑定
         ).run();
       }
     }

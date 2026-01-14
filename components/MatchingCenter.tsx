@@ -4,7 +4,7 @@ import { Driver, Vehicle, DriverStatus, Task, DriverSchedule, VehicleSchedule } 
 import { 
   Zap, Clock, MapPin, CheckCircle2, Calendar, Sparkles, PlusCircle,
   Timer, Info, ChevronRight, Car, AlertCircle, Layers,
-  ChevronLeft
+  ChevronLeft, FileText
 } from 'lucide-react';
 
 interface Props {
@@ -36,6 +36,7 @@ const MatchingCenter: React.FC<Props> = ({
   const [durationIdx, setDurationIdx] = useState<number>(4); 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [notes, setNotes] = useState(''); // 新增：备注状态
 
   // 辅助函数：判断司机在特定时间片是否忙碌 (基于真实 Tasks 数据)
   const isDriverBusyAtSlot = (driverId: string, slotIdx: number, date: string) => {
@@ -107,6 +108,10 @@ const MatchingCenter: React.FC<Props> = ({
     if (e) e.preventDefault();
     if (!selectedDriverId || !selectedVehicleId || !from.trim() || !to.trim()) return;
 
+    // 查找选中的司机和车辆对象以获取名称
+    const driverObj = drivers.find(d => d.id === selectedDriverId);
+    const vehicleObj = vehicles.find(v => v.id === selectedVehicleId);
+
     let startTime, endTime;
     if (isMultiDay) {
       startTime = `${currentDate}T00:00:00`;
@@ -125,17 +130,20 @@ const MatchingCenter: React.FC<Props> = ({
     onCreateTask({
       title: `${from} → ${to}`,
       driverId: selectedDriverId,
+      driverName: driverObj?.name || '未知司机', // 传递司机姓名
       vehicleId: selectedVehicleId,
+      vehiclePlate: vehicleObj?.plateNumber || '未知车牌', // 传递车牌号
       startTime,
       endTime,
       locationStart: from,
       locationEnd: to,
       priority: isMultiDay ? 'HIGH' : 'MEDIUM',
       status: 'IN_PROGRESS',
-      date: currentDate
+      date: currentDate,
+      notes: notes // 传递备注
     });
 
-    setFrom(''); setTo(''); setSelectedDriverId(''); setSelectedVehicleId('');
+    setFrom(''); setTo(''); setSelectedDriverId(''); setSelectedVehicleId(''); setNotes('');
   };
 
   const formatIdxToTime = (idx: number) => {
@@ -335,6 +343,20 @@ const MatchingCenter: React.FC<Props> = ({
                   <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="目标终点..." className="bg-transparent text-xs font-black w-full text-white outline-none placeholder:text-slate-700" />
                 </div>
               </div>
+
+              {/* 新增：任务备注输入区 */}
+              <div className="space-y-1.5 pt-2">
+                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 flex items-center gap-1">
+                   <FileText className="w-3 h-3" /> 任务备注 / 客人信息
+                 </label>
+                 <textarea 
+                   value={notes} 
+                   onChange={(e) => setNotes(e.target.value)}
+                   placeholder="记录特殊需求、VIP客人姓名或经停点..."
+                   className="w-full bg-black/40 border border-white/5 p-3.5 rounded-xl font-bold text-xs text-white outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-700 resize-none h-20"
+                 />
+              </div>
+
             </div>
 
             <button 
