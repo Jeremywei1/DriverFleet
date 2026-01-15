@@ -4,13 +4,13 @@ import { Driver, Vehicle, DriverStatus, Task, DriverSchedule, VehicleSchedule } 
 import { 
   Zap, Clock, MapPin, CheckCircle2, Calendar, Sparkles, PlusCircle,
   Timer, Info, ChevronRight, Car, AlertCircle, Layers,
-  ChevronLeft, FileText, Banknote
+  ChevronLeft, FileText
 } from 'lucide-react';
 
 interface Props {
   drivers: Driver[];
   vehicles: Vehicle[];
-  tasks: Task[]; // 新增 tasks 属性
+  tasks: Task[]; 
   driverSchedules: DriverSchedule[];
   vehicleSchedules: VehicleSchedule[];
   onCreateTask: (task: Partial<Task>) => void;
@@ -36,13 +36,12 @@ const MatchingCenter: React.FC<Props> = ({
   const [durationIdx, setDurationIdx] = useState<number>(4); 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [notes, setNotes] = useState(''); // 新增：备注状态
-  const [revenue, setRevenue] = useState(''); // 新增：金额
+  const [notes, setNotes] = useState('');
 
   // 辅助函数：判断司机在特定时间片是否忙碌 (基于真实 Tasks 数据)
   const isDriverBusyAtSlot = (driverId: string, slotIdx: number, date: string) => {
     const slotTimeStart = slotIdx / 2;
-    const slotTimeEnd = (slotIdx + 1) / 2;
+    // const slotTimeEnd = (slotIdx + 1) / 2; // Unused variable
 
     return tasks.some(t => {
       // 必须是该司机的任务，且不是取消状态
@@ -147,11 +146,11 @@ const MatchingCenter: React.FC<Props> = ({
       status: 'IN_PROGRESS',
       date: currentDate,
       notes: notes,
-      revenue: Number(revenue) || 0, // 传递金额
+      revenue: 0, // 移除营收输入，默认为 0
       taskType: 'PASSENGER'
     });
 
-    setFrom(''); setTo(''); setSelectedDriverId(''); setSelectedVehicleId(''); setNotes(''); setRevenue('');
+    setFrom(''); setTo(''); setSelectedDriverId(''); setSelectedVehicleId(''); setNotes('');
   };
 
   const formatIdxToTime = (idx: number) => {
@@ -166,7 +165,7 @@ const MatchingCenter: React.FC<Props> = ({
     <div className="flex flex-col gap-6 animate-in fade-in duration-700 pb-12 select-none h-full max-h-full">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
         
-        {/* 左侧负载轴矩阵：优化行高与视觉节奏 */}
+        {/* 左侧负载轴矩阵 */}
         <div className={`lg:col-span-7 bg-white rounded-[40px] border border-slate-100 shadow-xl flex flex-col overflow-hidden transition-all ${isMultiDay ? 'opacity-30 blur-[2px] pointer-events-none' : ''}`}>
           <div className="bg-white px-8 py-6 border-b border-slate-50 flex justify-between items-center flex-shrink-0">
             <span className="font-black text-slate-800 uppercase text-xs tracking-widest italic flex items-center gap-2">
@@ -230,7 +229,7 @@ const MatchingCenter: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 右侧：调度指挥表单 - 字体微调优化版 */}
+        {/* 右侧：调度指挥表单 */}
         <div className="lg:col-span-5 flex flex-col">
           <form onSubmit={handleAssign} className="bg-slate-900 rounded-[40px] p-8 text-white flex flex-col gap-6 h-full shadow-2xl border border-slate-800 relative overflow-hidden">
             {/* 饰景纹理 */}
@@ -246,7 +245,7 @@ const MatchingCenter: React.FC<Props> = ({
 
             <div className="flex-1 space-y-6 overflow-y-auto pr-2 scrollbar-hide z-10">
               
-              {/* 核心模式切换：集成在此 */}
+              {/* 核心模式切换 */}
               <div className="bg-white/5 p-1 rounded-2xl flex border border-white/5 flex-shrink-0">
                 <button 
                   type="button" onClick={() => setIsMultiDay(false)}
@@ -262,34 +261,46 @@ const MatchingCenter: React.FC<Props> = ({
                 </button>
               </div>
 
-              {/* 日期选择区：随模式变动 */}
+              {/* 日期选择区：Phantom Overlay Blind Click 模式 */}
               <div className="space-y-4">
                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">{isMultiDay ? '起始日期' : '任务日期'}</label>
-                       <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400" />
+                       <div className="relative group cursor-pointer">
+                          {/* 视觉层：展示图标和日期文本 */}
+                          <div className="w-full bg-black/40 border border-white/5 p-3 pl-10 rounded-xl font-black text-xs text-white flex items-center h-[42px] group-hover:border-indigo-500/50 transition-all pointer-events-none">
+                             {currentDate || '请选择日期'}
+                          </div>
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400 pointer-events-none" />
+                          
+                          {/* 交互层：全覆盖透明 Input */}
                           <input 
                             type="date" value={currentDate} onChange={(e) => onDateChange(e.target.value)}
-                            className="w-full bg-black/40 border border-white/5 p-3 pl-10 rounded-xl font-black text-xs text-white outline-none focus:border-indigo-500/50 transition-all cursor-pointer" 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
                           />
                        </div>
                     </div>
                     {isMultiDay && (
                       <div className="space-y-1.5 animate-in slide-in-from-right-2">
                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">结束日期</label>
-                         <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-400" />
+                         <div className="relative group cursor-pointer">
+                            {/* 视觉层 */}
+                            <div className="w-full bg-black/40 border border-white/5 p-3 pl-10 rounded-xl font-black text-xs text-white flex items-center h-[42px] group-hover:border-emerald-500/50 transition-all pointer-events-none">
+                               {endDate || '请选择日期'}
+                            </div>
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-emerald-400 pointer-events-none" />
+                            
+                            {/* 交互层 */}
                             <input 
                               type="date" value={endDate} min={currentDate} onChange={(e) => setEndDate(e.target.value)}
-                              className="w-full bg-black/40 border border-white/5 p-3 pl-10 rounded-xl font-black text-xs text-white outline-none focus:border-indigo-500/50 transition-all cursor-pointer" 
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
                             />
                          </div>
                       </div>
                     )}
                  </div>
 
-                 {/* 单日时段选择器：修复滑块布局 */}
+                 {/* 单日时段选择器 */}
                  {!isMultiDay && (
                    <div className="grid grid-cols-2 gap-3 animate-in fade-in">
                       <div className="space-y-1.5">
@@ -351,24 +362,8 @@ const MatchingCenter: React.FC<Props> = ({
                   <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="目标终点..." className="bg-transparent text-xs font-black w-full text-white outline-none placeholder:text-slate-700" />
                 </div>
               </div>
-              
-              {/* 金额输入 (Revenue) */}
-              <div className="pt-2 space-y-1.5">
-                 <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest px-1 flex items-center gap-1">
-                   <Banknote className="w-3 h-3" /> 预估运费 (营收)
-                 </label>
-                 <div className="relative">
-                   <input 
-                     type="number" 
-                     value={revenue} 
-                     onChange={(e) => setRevenue(e.target.value)}
-                     placeholder="¥ 0.00"
-                     className="w-full bg-black/40 border border-amber-500/20 p-3.5 rounded-xl font-black text-sm text-amber-400 outline-none focus:border-amber-500/50 transition-all placeholder:text-slate-700"
-                   />
-                 </div>
-              </div>
 
-              {/* 任务备注输入区 */}
+              {/* 任务备注输入区 (已移除 Revenue) */}
               <div className="space-y-1.5 pt-2">
                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 flex items-center gap-1">
                    <FileText className="w-3 h-3" /> 任务备注 / 客人信息

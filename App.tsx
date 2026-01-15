@@ -288,13 +288,24 @@ const App: React.FC = () => {
            {activeTab !== 'reports' && (
              <div className="flex items-center bg-slate-100 p-1.5 rounded-[20px] gap-2 border border-slate-200 transition-all animate-in fade-in">
                 <button onClick={() => changeDateByOffset(-1)} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                <div className="relative group px-4 py-1.5 flex items-center gap-3 bg-white shadow-sm rounded-xl border border-slate-100">
-                   <CalendarIcon className="w-4 h-4 text-indigo-500" />
+                
+                {/* 优化后的日期选择热区：Input 铺满整个容器，实现无死角点击 */}
+                <div className="relative group bg-white shadow-sm rounded-xl border border-slate-100 hover:border-indigo-300 transition-all cursor-pointer min-w-[140px]">
+                   {/* 视觉层：显示图标和文字 */}
+                   <div className="px-4 py-1.5 flex items-center justify-center gap-3 pointer-events-none">
+                      <CalendarIcon className="w-4 h-4 text-indigo-500" />
+                      <span className="text-sm font-black text-slate-700 uppercase tracking-tighter">{currentDate}</span>
+                   </div>
+                   
+                   {/* 交互层：透明 Input 覆盖在上方 */}
                    <input 
-                     type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} 
-                     className="text-sm font-black text-slate-700 bg-transparent outline-none cursor-pointer uppercase tracking-tighter"
+                     type="date" 
+                     value={currentDate} 
+                     onChange={(e) => setCurrentDate(e.target.value)} 
+                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                    />
                 </div>
+
                 <button onClick={() => changeDateByOffset(1)} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-indigo-600 transition-all"><ChevronRight className="w-4 h-4" /></button>
              </div>
            )}
