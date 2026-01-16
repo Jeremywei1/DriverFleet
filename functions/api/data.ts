@@ -125,14 +125,14 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       }
     } else if (safeTable === 'tasks') {
       for (const item of items) {
-        // 更新：绑定 revenue, taskType, score, vehicleType, vehicleSeats
+        // 更新：移除 revenue, distanceKm
         await context.env.DB.prepare(`
           INSERT OR REPLACE INTO tasks (
             id, date, title, driverId, vehicleId, status, startTime, endTime, 
-            locationStart, locationEnd, distanceKm, priority, operation_timestamp,
-            driverName, vehiclePlate, notes, revenue, taskType, score,
+            locationStart, locationEnd, priority, operation_timestamp,
+            driverName, vehiclePlate, notes, taskType, score,
             vehicleType, vehicleSeats
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           wash(item.id, 'string'),
           wash(item.date, 'string'),
@@ -144,17 +144,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           wash(item.endTime, 'string'),
           wash(item.locationStart, 'string', '未知起点'),
           wash(item.locationEnd, 'string', '未知终点'),
-          wash(item.distanceKm, 'number', 0),
+          // removed distanceKm
           wash(item.priority, 'string', 'MEDIUM'),
           opTs,
           wash(item.driverName, 'string', '未知司机'),
           wash(item.vehiclePlate, 'string', '未知车辆'),
           wash(item.notes, 'string', ''),
-          wash(item.revenue, 'number', 0),
           wash(item.taskType, 'string', 'PASSENGER'),
           wash(item.score, 'number', 0),
-          wash(item.vehicleType, 'string', 'Unknown'), // 新增
-          wash(item.vehicleSeats, 'number', 0)         // 新增
+          wash(item.vehicleType, 'string', 'Unknown'),
+          wash(item.vehicleSeats, 'number', 0)
         ).run();
       }
     }

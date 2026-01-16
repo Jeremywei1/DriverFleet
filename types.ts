@@ -30,7 +30,7 @@ export interface Vehicle {
   seats: number;
   age: number;
   currentDriverId: string | null;
-  mileage: number;
+  mileage: number; // 车辆本身的行驶里程保留，作为资产维护依据
   lastService: string;
   isActive: boolean; // 手动控制：是否可派单/维修中
 }
@@ -53,13 +53,12 @@ export interface Task {
   endTime: string;
   locationStart: string;
   locationEnd: string;
-  distanceKm: number;
+  // distanceKm Removed
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   operation_timestamp: string;
   notes?: string; 
   
   // V2.0 经营性字段
-  revenue?: number; 
   taskType?: 'PASSENGER' | 'CARGO' | 'MAINTENANCE'; 
   score?: number; 
 }
@@ -69,7 +68,7 @@ export interface DriverStats {
   name: string;
   totalDays: number;
   totalHours: number;
-  totalDistance: number;
+  // totalDistance Removed
   completedOrders: number;
   efficiencyScore: number;
 }

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Task, Driver } from '../types';
-import { MapPin, Calendar, Truck, ArrowRight, Trash2, AlertCircle, Layers, FileText, Banknote } from 'lucide-react';
+import { MapPin, Calendar, Truck, ArrowRight, Trash2, AlertCircle, Layers, FileText } from 'lucide-react';
 
 interface Props {
   tasks: Task[];
@@ -116,21 +116,13 @@ const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask, selectedDate 
                    </div>
                 </div>
                 
-                {/* 备注与金额显示区域 */}
-                {(task.notes || (task.revenue && task.revenue > 0)) && (
-                   <div className="mb-4 flex gap-2">
-                      {task.notes && (
-                        <div className="flex-1 bg-amber-50 p-3 rounded-xl border border-amber-100 text-amber-800/80 flex items-start gap-2">
-                           <FileText className="w-3 h-3 mt-0.5 shrink-0" />
-                           <p className="text-[10px] font-bold leading-relaxed line-clamp-1">{task.notes}</p>
-                        </div>
-                      )}
-                      {task.revenue && task.revenue > 0 && (
-                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-emerald-700 flex items-center gap-1.5 shrink-0">
-                           <Banknote className="w-3.5 h-3.5" />
-                           <span className="text-xs font-black">¥{task.revenue.toLocaleString()}</span>
-                        </div>
-                      )}
+                {/* 备注显示区域 (Revenue已移除) */}
+                {task.notes && (
+                   <div className="mb-4">
+                      <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 text-amber-800/80 flex items-start gap-2">
+                         <FileText className="w-3 h-3 mt-0.5 shrink-0" />
+                         <p className="text-[10px] font-bold leading-relaxed line-clamp-2">{task.notes}</p>
+                      </div>
                    </div>
                 )}
 
@@ -142,7 +134,7 @@ const TaskList: React.FC<Props> = ({ tasks, drivers, onDeleteTask, selectedDate 
                      <span className="text-slate-700 font-black text-xs italic uppercase tracking-tighter">{getDriverName(task.driverId)}</span>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">距离 {task.distanceKm} KM</span>
+                    {/* Distance Display Removed Here */}
                     {task.priority === 'HIGH' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>}
                   </div>
                 </div>

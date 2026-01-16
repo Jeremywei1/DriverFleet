@@ -146,7 +146,6 @@ const MatchingCenter: React.FC<Props> = ({
       status: 'IN_PROGRESS',
       date: currentDate,
       notes: notes,
-      revenue: 0, // 移除营收输入，默认为 0
       taskType: 'PASSENGER'
     });
 
@@ -363,7 +362,7 @@ const MatchingCenter: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* 任务备注输入区 (已移除 Revenue) */}
+              {/* 任务备注输入区 */}
               <div className="space-y-1.5 pt-2">
                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 flex items-center gap-1">
                    <FileText className="w-3 h-3" /> 任务备注 / 客人信息

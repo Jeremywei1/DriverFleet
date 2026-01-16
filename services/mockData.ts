@@ -70,7 +70,7 @@ export const generateStats = (drivers: Driver[]): DriverStats[] => {
     name: d.name,
     totalDays: 20,
     totalHours: 160,
-    totalDistance: 2500,
+    // totalDistance removed
     completedOrders: 45,
     efficiencyScore: 92
   }));
