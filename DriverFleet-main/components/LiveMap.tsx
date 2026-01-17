@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Driver, DriverStatus, Vehicle } from '../types';
 import { Map, Navigation, Car, Truck, Zap, User, Radio } from 'lucide-react';
